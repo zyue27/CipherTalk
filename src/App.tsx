@@ -612,42 +612,22 @@ function App() {
   return (
     <div className="app-container">
       <TitleBar />
-      {updateInfo && !updateInfo.forceUpdate && (
-        <div className={`update-toast ${isUpdateDownloading ? 'is-downloading' : ''}`}>
-          <div className="update-toast-icon">{isUpdateDownloading ? <Loader2 size={18} className="spin" /> : '🎉'}</div>
+      {updateInfo && !updateInfo.forceUpdate && !isUpdateDownloading && (
+        <div className="update-toast">
+          <div className="update-toast-icon">🎉</div>
           <div className="update-toast-content">
-            <div className="update-toast-title">{isUpdateDownloading ? '正在下载更新' : '发现新版本'}</div>
+            <div className="update-toast-title">发现新版本</div>
+            <div className="update-toast-version">v{updateInfo.version} 已发布</div>
             <div className="update-toast-version">
-              {isUpdateDownloading ? `v${updateInfo.version} ${progressPercent !== null ? `${progressPercent.toFixed(0)}%` : ''}` : `v${updateInfo.version} 已发布`}
+              更新源：{updateInfo.updateSource === 'github' ? 'GitHub Release' : '未知'}
             </div>
-            <div className="update-toast-version">
-              {isUpdateDownloading
-                ? `${formatBytes(downloadProgress?.transferred ?? updateInfo.diagnostics?.downloadedBytes)} / ${formatBytes(downloadProgress?.total ?? updateInfo.diagnostics?.totalBytes)}`
-                : `更新源：${updateInfo.updateSource === 'github' ? 'GitHub Release' : '未知'}`}
-            </div>
-            {isUpdateDownloading && (
-              <div className="update-toast-meta">
-                <span>速度 {formatSpeed(downloadProgress?.bytesPerSecond ?? 0)}</span>
-                {updateInfo.diagnostics?.fallbackToFull ? <span>已回退全量</span> : null}
-              </div>
-            )}
           </div>
-          {isUpdateDownloading ? (
-            <div className="update-toast-progress">
-              <div className="update-toast-progress-bar">
-                <div className="update-toast-progress-fill" style={{ width: `${progressPercent ?? 0}%` }} />
-              </div>
-            </div>
-          ) : (
-            <>
-              <button className="update-toast-btn" onClick={handleStartUpdate} disabled={isUpdateDownloading}>
-                立即更新
-              </button>
-              <button className="update-toast-close" onClick={dismissUpdate}>
-                <X size={14} />
-              </button>
-            </>
-          )}
+          <button className="update-toast-btn" onClick={handleStartUpdate}>
+            立即更新
+          </button>
+          <button className="update-toast-close" onClick={dismissUpdate}>
+            <X size={14} />
+          </button>
         </div>
       )}
       {updateInfo?.forceUpdate && (
@@ -741,16 +721,25 @@ function App() {
       <DecryptProgressOverlay />
       {progressPercent !== null && (
         <div className="download-progress-capsule">
-          <Loader2 className="spin" size={14} />
-          <div className="capsule-copy">
-            <span>正在下载更新... {progressPercent.toFixed(0)}%</span>
-            <small>{formatSpeed(downloadProgress?.bytesPerSecond ?? 0)}</small>
+          <div className="capsule-compact">
+            <Loader2 className="spin" size={14} />
+            <span>更新中 {progressPercent.toFixed(0)}%</span>
           </div>
-          <div className="capsule-progress">
+          <div className="capsule-detail">
+            <div className="capsule-detail-head">
+              <Loader2 className="spin" size={14} />
+              <span className="capsule-detail-title">
+                正在下载更新{updateInfo?.version ? ` v${updateInfo.version}` : ''}
+              </span>
+              <span className="capsule-detail-pct">{progressPercent.toFixed(0)}%</span>
+            </div>
             <div className="progress-bar-bg">
               <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
             </div>
-            <small>{formatBytes(downloadProgress?.transferred ?? updateInfo?.diagnostics?.downloadedBytes)} / {formatBytes(downloadProgress?.total ?? updateInfo?.diagnostics?.totalBytes)}</small>
+            <div className="capsule-detail-meta">
+              <span>{formatBytes(downloadProgress?.transferred ?? updateInfo?.diagnostics?.downloadedBytes)} / {formatBytes(downloadProgress?.total ?? updateInfo?.diagnostics?.totalBytes)}</span>
+              <span>{formatSpeed(downloadProgress?.bytesPerSecond ?? 0)}</span>
+            </div>
           </div>
         </div>
       )}

@@ -118,7 +118,16 @@ export async function checkAndConnectOnStartup(ctx: MainProcessContext): Promise
  * 只在生产环境触发，结果沿用 app:updateAvailable 推送给主窗口。
  */
 export function checkForUpdatesOnStartup(ctx: MainProcessContext): void {
-  if (process.env.VITE_DEV_SERVER_URL) return
+  if (process.env.VITE_DEV_SERVER_URL) {
+    // 开发模式：推送一条模拟的更新通知，便于本地测试更新提示 UI（不会真实下载/安装）
+    setTimeout(() => {
+      const mainWindow = ctx.getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('app:updateAvailable', appUpdateService.createSimulatedUpdateInfo())
+      }
+    }, 3000)
+    return
+  }
 
   setTimeout(async () => {
     try {

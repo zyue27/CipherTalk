@@ -294,6 +294,27 @@ class AppUpdateService {
     this.lastInfo = info
     return info
   }
+
+  /**
+   * 开发模式专用：构造一个模拟的更新信息，用于在 dev 环境下测试更新提示 UI。
+   * 不会真实检查远端版本，也不会触发下载/安装。
+   */
+  createSimulatedUpdateInfo(): AppUpdateInfo {
+    this.resetDiagnostics('6.0.4')
+    this.updateDiagnostics({
+      phase: 'available',
+      lastEvent: '检测到新版本 6.0.4（开发模式模拟）'
+    })
+    const info = this.buildInfo({
+      hasUpdate: true,
+      version: '6.0.4',
+      releaseNotes: '开发模式模拟更新，仅用于测试更新提示 UI。',
+      updateSource: 'github',
+      policySource: 'none'
+    })
+    this.lastInfo = info
+    return info
+  }
 }
 
 export const appUpdateService = new AppUpdateService()
