@@ -1,4 +1,4 @@
-import { Aperture, BadgeCheck, Bot, BrainCircuit, Image as ImageIcon, Loader2, Mic, Origami, Radar, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react'
+import { Aperture, BadgeCheck, BrainCircuit, Image as ImageIcon, Loader2, Mic, Origami, Radar, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react'
 import AppDatePicker from '../../../components/AppDatePicker'
 import type { ChatSession } from '../../../types/models'
 import type { SessionVectorIndexState } from '../../../types/ai'
@@ -40,8 +40,6 @@ interface ChatHeaderProps {
   isBatchDecrypting: boolean
   batchDecryptProgress: Progress
   onBatchDecrypt: () => void | Promise<void>
-  showDetailPanel: boolean
-  onToggleDetailPanel: () => void
 }
 
 export function ChatHeader({
@@ -73,9 +71,7 @@ export function ChatHeader({
   onBatchTranscribe,
   isBatchDecrypting,
   batchDecryptProgress,
-  onBatchDecrypt,
-  showDetailPanel,
-  onToggleDetailPanel
+  onBatchDecrypt
 }: ChatHeaderProps) {
   return (
     <div className="message-header">
@@ -218,14 +214,6 @@ export function ChatHeader({
           ) : (
             <ImageIcon size={18} />
           )}
-        </button>
-        <button
-          className={`icon-btn detail-btn ${showDetailPanel ? 'active' : ''}`}
-          onClick={onToggleDetailPanel}
-          data-tooltip="AI 助手"
-          aria-label="打开 AI 助手"
-        >
-          <Bot size={18} />
         </button>
       </div>
     </div>

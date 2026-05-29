@@ -16,7 +16,6 @@ import { BatchDecryptModal } from './components/BatchDecryptModal'
 import { BatchTranscribeModal } from './components/BatchTranscribeModal'
 import { ChatHeader } from './components/ChatHeader'
 import { MessageList } from './components/MessageList'
-import { SessionAiAgentPanel } from './components/SessionAiAgentPanel'
 import { SessionSidebar } from './components/SessionSidebar'
 import { SharePosterModal } from './components/SharePosterModal'
 import { ContextMenuPortal } from './components/portals/ContextMenuPortal'
@@ -120,22 +119,6 @@ function ChatPage(_props: ChatPageProps) {
   const [myAvatarUrl, setMyAvatarUrl] = useState<string | undefined>(undefined)
   // showScrollToBottom 由 useThrottledScroll hook 管理
   const { sidebarWidth, isResizing, handleResizeStart } = useSidebarResize(260)
-  const [showDetailPanel, setShowDetailPanel] = useState(false)
-  const [isDetailClosing, setIsDetailClosing] = useState(false)
-  const closeDetailPanel = useCallback(() => {
-    setIsDetailClosing(true)
-    setTimeout(() => {
-      setShowDetailPanel(false)
-      setIsDetailClosing(false)
-    }, 220)
-  }, [])
-  const toggleDetailPanel = useCallback(() => {
-    if (showDetailPanel) {
-      closeDetailPanel()
-    } else {
-      setShowDetailPanel(true)
-    }
-  }, [showDetailPanel, closeDetailPanel])
   const [hasImageKey, setHasImageKey] = useState<boolean | null>(null)
   const {
     contextMenu,
@@ -1982,8 +1965,6 @@ function ChatPage(_props: ChatPageProps) {
               isBatchDecrypting={isBatchDecrypting}
               batchDecryptProgress={batchDecryptProgress}
               onBatchDecrypt={handleBatchDecrypt}
-              showDetailPanel={showDetailPanel}
-              onToggleDetailPanel={toggleDetailPanel}
             />
 
             <div className="message-content-wrapper">
@@ -2005,14 +1986,6 @@ function ChatPage(_props: ChatPageProps) {
                 showScrollToBottom={showScrollToBottom}
                 scrollToBottom={scrollToBottom}
               />
-
-              {showDetailPanel && (
-                <SessionAiAgentPanel
-                  isClosing={isDetailClosing}
-                  session={currentSession}
-                  onClose={closeDetailPanel}
-                />
-              )}
             </div>
 
             {selectMode && (
