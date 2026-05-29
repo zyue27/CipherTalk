@@ -218,7 +218,6 @@ export function registerCipherTalkMcpTools(server: any) {
     description: 'Search messages across one or more sessions and return agent-friendly hits. Use for broad clue hunting when the target session or keyword is still uncertain. Hit text is in hits[].message.text and hits[].excerpt.',
     inputSchema: {
       query: z.string().trim().min(1).describe('Required full-text query.'),
-      semanticQuery: z.string().trim().min(1).optional().describe('Optional natural-language query for local vector search. Defaults to query.'),
       sessionId: z.string().trim().min(1).optional().describe('Single session identifier to search. Accepts sessionId, contactId, display name, remark, or nickname when uniquely resolvable.'),
       sessionIds: z.array(z.string().trim().min(1)).max(20).optional().describe('Multiple session identifiers to search. Each item accepts sessionId, contactId, display name, remark, or nickname when uniquely resolvable.'),
       startTime: z.number().int().positive().optional().describe('Start timestamp in seconds or milliseconds.'),
@@ -229,8 +228,7 @@ export function registerCipherTalkMcpTools(server: any) {
       matchMode: z.enum(['substring', 'exact']).optional().describe('Search match mode.'),
       limit: z.number().int().positive().optional().describe('Maximum number of hits to return.'),
       includeRaw: z.boolean().optional().describe('Include raw message content when true.'),
-      includeMediaPaths: z.boolean().optional().describe('Resolve media local paths when true.'),
-      rerank: z.boolean().optional().describe('When true, rerank indexed recall candidates with the local Qwen3 reranker if available.')
+      includeMediaPaths: z.boolean().optional().describe('Resolve media local paths when true.')
     },
     outputSchema: toolOutputSchemas.search_messages
   }, async (args: unknown) => {
@@ -245,20 +243,17 @@ export function registerCipherTalkMcpTools(server: any) {
 
   server.registerTool('search_memory', {
     title: 'Search Memory',
-    description: 'Search structured Agent memory_items with hybrid FTS/ANN/RRF/rerank and optional evidence expansion. Returns message, conversation_block, fact, timeline_summary, profile, and other memory hits.',
+    description: 'Search structured memory_items with keyword recall and optional evidence expansion. Returns message, conversation_block, fact, timeline_summary, profile, and other memory hits.',
     inputSchema: {
       query: z.string().trim().min(1).describe('Required memory search query.'),
-      semanticQuery: z.string().trim().min(1).optional().describe('Optional semantic query. Defaults to query.'),
       keywordQueries: z.array(z.string().trim().min(1)).max(12).optional().describe('Optional extra keyword queries for FTS recall.'),
-      semanticQueries: z.array(z.string().trim().min(1)).max(12).optional().describe('Optional extra semantic queries for ANN recall.'),
       sessionId: z.string().trim().min(1).optional().describe('Optional session identifier. Accepts sessionId, contactId, display name, remark, or nickname when uniquely resolvable.'),
       sourceTypes: z.array(z.enum(MCP_MEMORY_SOURCE_TYPES)).optional().describe('Optional memory source type filters.'),
       startTime: z.number().int().positive().optional().describe('Optional start timestamp in seconds or milliseconds.'),
       endTime: z.number().int().positive().optional().describe('Optional end timestamp in seconds or milliseconds.'),
-      direction: z.enum(['in', 'out']).optional().describe('Optional direction filter for ANN message recall.'),
-      senderUsername: z.string().trim().min(1).optional().describe('Optional sender username filter for ANN message recall.'),
+      direction: z.enum(['in', 'out']).optional().describe('Optional direction filter.'),
+      senderUsername: z.string().trim().min(1).optional().describe('Optional sender username filter.'),
       limit: z.number().int().positive().optional().describe('Maximum number of memory hits to return.'),
-      rerank: z.boolean().optional().describe('When true, rerank recall candidates with the local Qwen3 reranker if available.'),
       expandEvidence: z.boolean().optional().describe('When true, expand memory source refs into surrounding chat context. Defaults to true.'),
       includeRaw: z.boolean().optional().describe('Include raw message content in expanded evidence when true.'),
       includeMediaPaths: z.boolean().optional().describe('Resolve media local paths in expanded evidence when true.')

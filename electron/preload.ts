@@ -1,102 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AccountProfile } from '../src/types/account'
 
-type SessionQAProgressEvent = {
-  id: string
-  stage: string
-  status: string
-  title?: string
-  detail?: string
-  message?: string
-  toolName?: string
-  createdAt?: number
-  [key: string]: unknown
-}
-
-type SessionQATimelineItem = {
-  type: 'text' | 'progress'
-  id: string
-  order: number
-  createdAt: number
-  requestId?: string
-  channel?: 'answer' | 'think'
-  content?: string
-  event?: SessionQAProgressEvent
-  [key: string]: unknown
-}
-
-type SessionQAJobEvent = {
-  requestId: string
-  seq: number
-  kind: 'progress' | 'stream' | 'final' | 'error' | 'cancelled'
-  createdAt: number
-  progress?: SessionQAProgressEvent
-  timelineItems?: SessionQATimelineItem[]
-  streamEvent?: AIStreamEvent
-  result?: unknown
-  error?: string
-}
-
-type AIStreamEvent =
-  | { type: 'reasoning_delta'; text: string }
-  | { type: 'content_delta'; text: string }
-  | { type: 'tool_call_delta'; index: number; delta: unknown }
-  | { type: 'tool_call_done'; toolCall: { id: string; type: 'function'; function: { name: string; arguments: string } } }
-  | { type: 'tool_result'; toolCallId?: string; toolName: string; result: unknown; error?: string }
-  | { type: 'round_start' }
-  | { type: 'message_done'; content: string; reasoningContent?: string; toolCalls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>; finishReason?: string | null }
-
-type SessionQAConversationEvent = {
-  id: number
-  sessionId: string
-  title: string
-  titleStatus: string
-  updatedAt: number
-  lastMessageAt: number
-  [key: string]: unknown
-}
-
-type SessionVectorIndexProgressEvent = {
-  sessionId: string
-  stage: string
-  status: string
-  processedCount: number
-  totalCount: number
-  message: string
-  vectorModel: string
-  vectorModelName?: string
-  vectorDim?: number
-  vectorIndexVersion?: string
-  vectorStoreName?: string
-  vectorModelDtype?: string
-  vectorModelSizeLabel?: string
-  embeddingMode?: 'local' | 'online'
-  vectorProviderName?: string
-}
-
-type SessionMemoryBuildProgressEvent = {
-  sessionId: string
-  stage: string
-  status: string
-  processedCount: number
-  totalCount: number
-  message: string
-  messageCount: number
-  blockCount: number
-  factCount: number
-}
-
-type EmbeddingModelDownloadProgress = {
-  profileId: string
-  displayName: string
-  remoteHost?: string
-  file?: string
-  loaded?: number
-  total?: number
-  percent?: number
-  status?: string
-}
-
 function getMcpLaunchConfigSafe(): Promise<{
   command: string
   args: string[]
@@ -263,7 +167,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ) => ipcRenderer.invoke('window:openImageViewerWindow', imagePath, liveVideoPath, imageList, options),
     openVideoPlayerWindow: (videoPath: string, videoWidth?: number, videoHeight?: number) => ipcRenderer.invoke('window:openVideoPlayerWindow', videoPath, videoWidth, videoHeight),
     openBrowserWindow: (url: string, title?: string) => ipcRenderer.invoke('window:openBrowserWindow', url, title),
-    openAISummaryWindow: (sessionId: string, sessionName: string) => ipcRenderer.invoke('window:openAISummaryWindow', sessionId, sessionName),
     openChatHistoryWindow: (sessionId: string, messageId: number) => ipcRenderer.invoke('window:openChatHistoryWindow', sessionId, messageId),
     resizeToFitVideo: (videoWidth: number, videoHeight: number) => ipcRenderer.invoke('window:resizeToFitVideo', videoWidth, videoHeight),
     resizeContent: (width: number, height: number) => ipcRenderer.invoke('window:resizeContent', width, height),
@@ -548,6 +451,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     clearImages: () => ipcRenderer.invoke('cache:clearImages'),
     clearEmojis: () => ipcRenderer.invoke('cache:clearEmojis'),
     clearDatabases: () => ipcRenderer.invoke('cache:clearDatabases'),
+    clearAIData: () => ipcRenderer.invoke('cache:clearAIData'),
     clearAll: () => ipcRenderer.invoke('cache:clearAll'),
     clearConfig: () => ipcRenderer.invoke('cache:clearConfig'),
     clearCurrentAccount: (deleteLocalData?: boolean) => ipcRenderer.invoke('cache:clearCurrentAccount', deleteLocalData),
@@ -608,7 +512,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     }
   },
 
-  // AI 摘要
+  // AI 接入
   ai: {
     getProviders: () => ipcRenderer.invoke('ai:getProviders'),
     getProxyStatus: () => ipcRenderer.invoke('ai:getProxyStatus'),
@@ -616,225 +520,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     testProxy: (proxyUrl: string, testUrl?: string) => ipcRenderer.invoke('ai:testProxy', proxyUrl, testUrl),
     testConnection: (provider: string, apiKey: string, baseURL?: string) => ipcRenderer.invoke('ai:testConnection', provider, apiKey, baseURL),
     listModels: (options: { provider: string; apiKey?: string; baseURL?: string }) => ipcRenderer.invoke('ai:listModels', options),
-    generatePosterTheme: (options: { description: string; provider?: string; apiKey?: string; model?: string }) =>
-      ipcRenderer.invoke('ai:generatePosterTheme', options),
     estimateCost: (messageCount: number, provider: string) => ipcRenderer.invoke('ai:estimateCost', messageCount, provider),
-    getUsageStats: (startDate?: string, endDate?: string) => ipcRenderer.invoke('ai:getUsageStats', startDate, endDate),
-    getSummaryHistory: (sessionId: string, limit?: number) => ipcRenderer.invoke('ai:getSummaryHistory', sessionId, limit),
-    listSessionQAConversations: (sessionId: string, limit?: number) =>
-      ipcRenderer.invoke('ai:listSessionQAConversations', sessionId, limit),
-    getSessionQAConversation: (conversationId: number) =>
-      ipcRenderer.invoke('ai:getSessionQAConversation', conversationId),
-    createSessionQAConversation: (options: { sessionId: string; sessionName?: string; linkedSummaryId?: number }) =>
-      ipcRenderer.invoke('ai:createSessionQAConversation', options),
-    renameSessionQAConversation: (conversationId: number, title: string) =>
-      ipcRenderer.invoke('ai:renameSessionQAConversation', conversationId, title),
-    deleteSessionQAConversation: (conversationId: number) =>
-      ipcRenderer.invoke('ai:deleteSessionQAConversation', conversationId),
-    deleteSummary: (id: number) => ipcRenderer.invoke('ai:deleteSummary', id),
-    renameSummary: (id: number, customName: string) => ipcRenderer.invoke('ai:renameSummary', id, customName),
-    cleanExpiredCache: () => ipcRenderer.invoke('ai:cleanExpiredCache'),
-    generateSummary: (sessionId: string, timeRange: number, options: {
-      provider: string
-      apiKey: string
-      model: string
-      detail: 'simple' | 'normal' | 'detailed'
-      systemPromptPreset?: 'default' | 'decision-focus' | 'action-focus' | 'risk-focus' | 'custom'
-      customSystemPrompt?: string
-      customRequirement?: string
-      sessionName?: string
-      enableThinking?: boolean
-    }) => ipcRenderer.invoke('ai:generateSummary', sessionId, timeRange, options),
-    askSessionQuestion: (options: {
-      sessionId: string
-      sessionName?: string
-      question: string
-      summaryText?: string
-      structuredAnalysis?: any
-      history?: Array<{ role: 'user' | 'assistant'; content: string }>
-      provider: string
-      apiKey: string
-      model: string
-      enableThinking?: boolean
-    }) => ipcRenderer.invoke('ai:askSessionQuestion', options),
-    startSessionQuestion: (options: {
-      requestId?: string
-      conversationId?: number
-      sessionId: string
-      sessionName?: string
-      question: string
-      summaryText?: string
-      structuredAnalysis?: any
-      history?: Array<{ role: 'user' | 'assistant'; content: string }>
-      provider: string
-      apiKey: string
-      model: string
-      enableThinking?: boolean
-    }) => ipcRenderer.invoke('ai:startSessionQuestion', options),
-    cancelSessionQuestion: (requestId: string) => ipcRenderer.invoke('ai:cancelSessionQuestion', requestId),
-    getSessionVectorIndexState: (sessionId: string) => ipcRenderer.invoke('ai:getSessionVectorIndexState', sessionId),
-    prepareSessionVectorIndex: (options: { sessionId: string }) => ipcRenderer.invoke('ai:prepareSessionVectorIndex', options),
-    cancelSessionVectorIndex: (sessionId: string) => ipcRenderer.invoke('ai:cancelSessionVectorIndex', sessionId),
-    getSessionMemoryBuildState: (sessionId: string) => ipcRenderer.invoke('ai:getSessionMemoryBuildState', sessionId),
-    prepareSessionMemory: (options: { sessionId: string }) => ipcRenderer.invoke('ai:prepareSessionMemory', options),
-    getSessionProfileMemoryState: (sessionId: string) => ipcRenderer.invoke('ai:getSessionProfileMemoryState', sessionId),
-    buildSessionProfileMemory: (options: {
-      sessionId: string
-      sessionName?: string
-      provider: string
-      apiKey: string
-      model: string
-    }) => ipcRenderer.invoke('ai:buildSessionProfileMemory', options),
-    getEmbeddingModelProfiles: () => ipcRenderer.invoke('ai:getEmbeddingModelProfiles'),
-    setEmbeddingMode: (mode: 'local' | 'online') => ipcRenderer.invoke('ai:setEmbeddingMode', mode),
-    setEmbeddingModelProfile: (profileId: string) => ipcRenderer.invoke('ai:setEmbeddingModelProfile', profileId),
-    setEmbeddingVectorDim: (profileId: string, dim: number) => ipcRenderer.invoke('ai:setEmbeddingVectorDim', profileId, dim),
-    getEmbeddingDeviceStatus: () => ipcRenderer.invoke('ai:getEmbeddingDeviceStatus'),
-    setEmbeddingDevice: (device: 'cpu' | 'dml') => ipcRenderer.invoke('ai:setEmbeddingDevice', device),
-    getEmbeddingModelStatus: (profileId?: string) => ipcRenderer.invoke('ai:getEmbeddingModelStatus', profileId),
-    downloadEmbeddingModel: (profileId?: string) => ipcRenderer.invoke('ai:downloadEmbeddingModel', profileId),
-    cancelEmbeddingModelDownload: (profileId?: string) => ipcRenderer.invoke('ai:cancelEmbeddingModelDownload', profileId),
-    clearEmbeddingModel: (profileId?: string) => ipcRenderer.invoke('ai:clearEmbeddingModel', profileId),
-    getOnlineEmbeddingProviders: () => ipcRenderer.invoke('ai:getOnlineEmbeddingProviders'),
-    listOnlineEmbeddingConfigs: () => ipcRenderer.invoke('ai:listOnlineEmbeddingConfigs'),
-    saveOnlineEmbeddingConfig: (payload: any) => ipcRenderer.invoke('ai:saveOnlineEmbeddingConfig', payload),
-    deleteOnlineEmbeddingConfig: (configId: string) => ipcRenderer.invoke('ai:deleteOnlineEmbeddingConfig', configId),
-    setCurrentOnlineEmbeddingConfig: (configId: string) => ipcRenderer.invoke('ai:setCurrentOnlineEmbeddingConfig', configId),
-    testOnlineEmbeddingConfig: (payload: any) => ipcRenderer.invoke('ai:testOnlineEmbeddingConfig', payload),
-    clearSemanticVectorIndex: (vectorModel?: string) => ipcRenderer.invoke('ai:clearSemanticVectorIndex', vectorModel),
-    onSummaryChunk: (callback: (chunk: string) => void) => {
-      ipcRenderer.on('ai:summaryChunk', (_, chunk) => callback(chunk))
-      return () => ipcRenderer.removeAllListeners('ai:summaryChunk')
-    },
-    onSessionQAChunk: (callback: (chunk: string) => void) => {
-      ipcRenderer.on('ai:sessionQaChunk', (_, chunk) => callback(chunk))
-      return () => ipcRenderer.removeAllListeners('ai:sessionQaChunk')
-    },
-    onSessionQAProgress: (callback: (event: SessionQAProgressEvent) => void) => {
-      ipcRenderer.on('ai:sessionQaProgress', (_, event) => callback(event))
-      return () => ipcRenderer.removeAllListeners('ai:sessionQaProgress')
-    },
-    onSessionQAEvent: (callback: (event: SessionQAJobEvent) => void) => {
-      const listener = (_: any, event: SessionQAJobEvent) => callback(event)
-      ipcRenderer.on('ai:sessionQaEvent', listener)
-      return () => ipcRenderer.removeListener('ai:sessionQaEvent', listener)
-    },
-    onSessionQAConversationUpdated: (callback: (event: SessionQAConversationEvent) => void) => {
-      const listener = (_: any, event: SessionQAConversationEvent) => callback(event)
-      ipcRenderer.on('ai:sessionQaConversationUpdated', listener)
-      return () => ipcRenderer.removeListener('ai:sessionQaConversationUpdated', listener)
-    },
-    onSessionVectorIndexProgress: (callback: (event: SessionVectorIndexProgressEvent) => void) => {
-      ipcRenderer.on('ai:sessionVectorIndexProgress', (_, event) => callback(event))
-      return () => ipcRenderer.removeAllListeners('ai:sessionVectorIndexProgress')
-    },
-    onSessionMemoryBuildProgress: (callback: (event: SessionMemoryBuildProgressEvent) => void) => {
-      ipcRenderer.on('ai:sessionMemoryBuildProgress', (_, event) => callback(event))
-      return () => ipcRenderer.removeAllListeners('ai:sessionMemoryBuildProgress')
-    },
-    onEmbeddingModelDownloadProgress: (callback: (event: EmbeddingModelDownloadProgress) => void) => {
-      ipcRenderer.on('ai:embeddingModelDownloadProgress', (_, event) => callback(event))
-      return () => ipcRenderer.removeAllListeners('ai:embeddingModelDownloadProgress')
-    }
-  },
-  aiagent: {
-    send: (opts: {
-      requestId: string
-      scope: { kind: 'session'; sessionId: string; sessionName?: string } | { kind: 'global' }
-      conversationId?: number
-      history: Array<{ role: 'user' | 'assistant'; content: string }>
-      message: string
-      provider: {
-        provider: string
-        apiKey: string
-        model: string
-        enableThinking?: boolean
-        temperature?: number
-      }
-      commandHint?: string
-      forceThinking?: boolean
-      readLimit?: number
-      skillIds?: string[]
-      scopedSessions?: Array<{ id: string; name: string }>
-    }) => ipcRenderer.invoke('aiagent:send', opts),
-
-    cancel: (requestId: string) => ipcRenderer.invoke('aiagent:cancel', requestId),
-
-    listConversations: (scope: { kind: 'session'; sessionId: string; sessionName?: string } | { kind: 'global' }) =>
-      ipcRenderer.invoke('aiagent:listConversations', scope),
-
-    loadConversation: (id: number) => ipcRenderer.invoke('aiagent:loadConversation', id),
-
-    newConversation: (scope: { kind: 'session'; sessionId: string; sessionName?: string } | { kind: 'global' }, title?: string) =>
-      ipcRenderer.invoke('aiagent:newConversation', scope, title),
-
-    deleteConversation: (id: number) => ipcRenderer.invoke('aiagent:deleteConversation', id),
-
-    updateTitle: (id: number, title: string) => ipcRenderer.invoke('aiagent:updateTitle', id, title),
-
-    getLastConversationId: (scope: { kind: 'session'; sessionId: string; sessionName?: string } | { kind: 'global' }) =>
-      ipcRenderer.invoke('aiagent:getLastConversationId', scope),
-
-    appendLocalMessages: (opts: {
-      conversationId?: number
-      scope: { kind: 'session'; sessionId: string; sessionName?: string } | { kind: 'global' }
-      messages: Array<{
-        role: 'user' | 'assistant'
-        content?: string
-        blocks?: unknown[]
-      }>
-    }) => ipcRenderer.invoke('aiagent:appendLocalMessages', opts),
-
-    generateTitle: (opts: {
-      conversationId: number
-      userMessage: string
-      assistantResponse: string
-      provider: {
-        provider: string
-        apiKey: string
-        model: string
-        enableThinking?: boolean
-        temperature?: number
-      }
-    }) => ipcRenderer.invoke('aiagent:generateTitle', opts),
-
-    onStreamEvent: (cb: (data: { requestId: string; event: AIStreamEvent }) => void) => {
-      const handler = (_: unknown, data: any) => cb(data)
-      ipcRenderer.on('aiagent:streamEvent', handler)
-      return () => ipcRenderer.off('aiagent:streamEvent', handler)
-    },
-
-    onProgress: (cb: (event: SessionQAProgressEvent) => void) => {
-      const handler = (_: unknown, event: any) => cb(event)
-      ipcRenderer.on('aiagent:progress', handler)
-      return () => ipcRenderer.off('aiagent:progress', handler)
-    },
-
-    onDone: (cb: (data: { requestId: string; conversationId?: number }) => void) => {
-      const handler = (_: unknown, data: any) => cb(data)
-      ipcRenderer.on('aiagent:done', handler)
-      return () => ipcRenderer.off('aiagent:done', handler)
-    },
-
-    onError: (cb: (data: { requestId: string; message: string }) => void) => {
-      const handler = (_: unknown, data: any) => cb(data)
-      ipcRenderer.on('aiagent:error', handler)
-      return () => ipcRenderer.off('aiagent:error', handler)
-    },
-
-    onConversationUpdated: (cb: (data: unknown) => void) => {
-      const handler = (_: unknown, data: any) => cb(data)
-      ipcRenderer.on('aiagent:conversationUpdated', handler)
-      return () => ipcRenderer.off('aiagent:conversationUpdated', handler)
-    },
-
-    removeListeners: () => {
-      ipcRenderer.removeAllListeners('aiagent:streamEvent')
-      ipcRenderer.removeAllListeners('aiagent:progress')
-      ipcRenderer.removeAllListeners('aiagent:done')
-      ipcRenderer.removeAllListeners('aiagent:error')
-      ipcRenderer.removeAllListeners('aiagent:conversationUpdated')
-    }
+    readGuide: (guideName: string) => ipcRenderer.invoke('ai:readGuide', guideName)
   }
 })
 

@@ -13,6 +13,7 @@ import type { AccountProfile } from '../../src/types/account'
  *
  * 目前真正生效的能力：
  * - 清理图片缓存 / 表情包缓存 / 日志
+ * - 清理已移除 AI 功能生成的本地数据库
  * - 读取缓存体积概览（数据库项固定为 0）
  * - 账号配置清理
  */
@@ -122,6 +123,40 @@ export class CacheService {
     return { success: true }
   }
 
+  async clearAIData(): Promise<{ success: boolean; error?: string; deletedFiles?: string[]; failedFiles?: Array<{ path: string; error: string }> }> {
+    const deletedFiles: string[] = []
+    const failedFiles: Array<{ path: string; error: string }> = []
+
+    try {
+      await this.closeAIDataStores()
+
+      for (const dbPath of this.getAIDataDbPaths()) {
+        for (const filePath of this.getSqliteFileSet(dbPath)) {
+          if (!existsSync(filePath)) continue
+          try {
+            rmSync(filePath, { force: true })
+            deletedFiles.push(filePath)
+          } catch (e) {
+            failedFiles.push({ path: filePath, error: String(e) })
+          }
+        }
+      }
+
+      if (failedFiles.length > 0) {
+        return {
+          success: false,
+          error: `部分 AI 数据库清理失败：${failedFiles.map(item => item.path).join(', ')}`,
+          deletedFiles,
+          failedFiles
+        }
+      }
+
+      return { success: true, deletedFiles, failedFiles }
+    } catch (e) {
+      return { success: false, error: String(e), deletedFiles, failedFiles }
+    }
+  }
+
   /**
    * 清除所有缓存（图片 / 表情包 / 日志；不含数据库）
    */
@@ -145,6 +180,8 @@ export class CacheService {
             }
           }
         }
+        const aiResult = await this.clearAIData()
+        if (!aiResult.success) return { success: false, error: aiResult.error }
         return { success: true }
       }
 
@@ -157,6 +194,9 @@ export class CacheService {
           rmSync(dirPath, { recursive: true, force: true })
         }
       }
+
+      const aiResult = await this.clearAIData()
+      if (!aiResult.success) return { success: false, error: aiResult.error }
 
       return { success: true }
     } catch (e) {
@@ -225,6 +265,7 @@ export class CacheService {
       images: number
       emojis: number
       databases: number
+      aiData: number
       logs: number
       total: number
     }
@@ -248,13 +289,15 @@ export class CacheService {
 
       // 数据库项不再统计
       const databasesSize = 0
+      const aiDataSize = this.getAIDataSize()
 
       const size = {
         images: imagesSize,
         emojis: emojisSize,
         databases: databasesSize,
+        aiData: aiDataSize,
         logs: logsSize,
-        total: imagesSize + emojisSize + databasesSize + logsSize,
+        total: imagesSize + emojisSize + databasesSize + aiDataSize + logsSize,
       }
 
       return { success: true, size }
@@ -285,5 +328,60 @@ export class CacheService {
       // 忽略权限错误等
     }
     return totalSize
+  }
+
+  private getAIDataDbPaths(): string[] {
+    const configuredCachePath = String(this.configService.get('cachePath') || '').trim()
+    const basePaths = [
+      configuredCachePath,
+      this.getEffectiveCachePath(),
+      join(process.cwd(), 'cache')
+    ].filter(Boolean)
+
+    const dbNames = [
+      'ai_summary.db',
+      'agent_memory.db',
+      'chat_search_index.db'
+    ]
+
+    return Array.from(new Set(
+      basePaths.flatMap(basePath => dbNames.map(dbName => join(basePath, dbName)))
+    ))
+  }
+
+  private getSqliteFileSet(dbPath: string): string[] {
+    return [
+      dbPath,
+      `${dbPath}-wal`,
+      `${dbPath}-shm`,
+      `${dbPath}-journal`
+    ]
+  }
+
+  private getAIDataSize(): number {
+    let total = 0
+    for (const dbPath of this.getAIDataDbPaths()) {
+      for (const filePath of this.getSqliteFileSet(dbPath)) {
+        try {
+          if (existsSync(filePath)) {
+            total += statSync(filePath).size
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return total
+  }
+
+  private async closeAIDataStores(): Promise<void> {
+    await Promise.all([
+      import('./memory/memoryDatabase')
+        .then(({ memoryDatabase }) => memoryDatabase.close())
+        .catch(() => undefined),
+      import('./search/chatSearchIndexService')
+        .then(({ chatSearchIndexService }) => chatSearchIndexService.close?.())
+        .catch(() => undefined)
+    ])
   }
 }

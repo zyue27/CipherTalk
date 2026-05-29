@@ -7,17 +7,12 @@ import {
   MEMORY_DB_NAME,
   MEMORY_SCHEMA_VERSION,
   MEMORY_SOURCE_TYPES,
-  MEMORY_VECTOR_STORES,
   type MemoryDatabaseStats,
-  type MemoryEmbedding,
-  type MemoryEmbeddingInput,
-  type MemoryEmbeddingRow,
   type MemoryEvidenceRef,
   type MemoryItem,
   type MemoryItemInput,
   type MemoryItemRow,
-  type MemorySourceType,
-  type MemoryVectorStoreName
+  type MemorySourceType
 } from './memorySchema'
 
 export type MemoryKeywordSearchOptions = {
@@ -184,12 +179,6 @@ function safeSourceType(value: string): MemorySourceType {
     : 'message'
 }
 
-function safeVectorStore(value: string): MemoryVectorStoreName {
-  return MEMORY_VECTOR_STORES.includes(value as MemoryVectorStoreName)
-    ? value as MemoryVectorStoreName
-    : 'sqlite_vec0'
-}
-
 function toMemoryItem(row: MemoryItemRow): MemoryItem {
   return {
     id: Number(row.id),
@@ -210,20 +199,6 @@ function toMemoryItem(row: MemoryItemRow): MemoryItem {
     sourceRefs: parseEvidenceRefsJson(row.source_refs_json),
     createdAt: Number(row.created_at || 0),
     updatedAt: Number(row.updated_at || 0)
-  }
-}
-
-function toMemoryEmbedding(row: MemoryEmbeddingRow): MemoryEmbedding {
-  return {
-    id: Number(row.id),
-    memoryId: Number(row.memory_id),
-    modelId: row.model_id,
-    modelRevision: row.model_revision,
-    vectorDim: Number(row.vector_dim),
-    vectorStore: safeVectorStore(row.vector_store),
-    vectorRef: row.vector_ref,
-    contentHash: row.content_hash,
-    indexedAt: Number(row.indexed_at || 0)
   }
 }
 
@@ -310,20 +285,6 @@ export class MemoryDatabase {
         updated_at INTEGER NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS memory_embeddings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        memory_id INTEGER NOT NULL,
-        model_id TEXT NOT NULL,
-        model_revision TEXT NOT NULL DEFAULT '',
-        vector_dim INTEGER NOT NULL,
-        vector_store TEXT NOT NULL,
-        vector_ref TEXT NOT NULL,
-        content_hash TEXT NOT NULL,
-        indexed_at INTEGER NOT NULL,
-        UNIQUE(memory_id, model_id, vector_dim),
-        FOREIGN KEY(memory_id) REFERENCES memory_items(id) ON DELETE CASCADE
-      );
-
       CREATE INDEX IF NOT EXISTS idx_memory_items_source_type
         ON memory_items(source_type);
       CREATE INDEX IF NOT EXISTS idx_memory_items_session_time
@@ -334,13 +295,9 @@ export class MemoryDatabase {
         ON memory_items(group_id);
       CREATE INDEX IF NOT EXISTS idx_memory_items_hash
         ON memory_items(content_hash);
-      CREATE INDEX IF NOT EXISTS idx_memory_embeddings_memory
-        ON memory_embeddings(memory_id);
-      CREATE INDEX IF NOT EXISTS idx_memory_embeddings_model
-        ON memory_embeddings(model_id, vector_dim);
-      CREATE INDEX IF NOT EXISTS idx_memory_embeddings_store
-        ON memory_embeddings(vector_store, vector_ref);
     `)
+
+    db.exec('DROP TABLE IF EXISTS memory_embeddings;')
 
     db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS memory_items_fts USING fts5(
@@ -606,130 +563,12 @@ export class MemoryDatabase {
     return result.changes > 0
   }
 
-  upsertMemoryEmbedding(input: MemoryEmbeddingInput): MemoryEmbedding {
-    const db = this.getDb()
-    const indexedAt = input.indexedAt || nowMs()
-    if (!Number.isInteger(input.memoryId) || input.memoryId <= 0) throw new Error('memoryId is required')
-    if (!String(input.modelId || '').trim()) throw new Error('modelId is required')
-    if (!Number.isInteger(input.vectorDim) || input.vectorDim <= 0) throw new Error('vectorDim is required')
-    if (!MEMORY_VECTOR_STORES.includes(input.vectorStore)) {
-      throw new Error(`Unsupported memory vector store: ${input.vectorStore}`)
-    }
-    if (!String(input.vectorRef || '').trim()) throw new Error('vectorRef is required')
-    if (!String(input.contentHash || '').trim()) throw new Error('contentHash is required')
-
-    db.prepare(`
-      INSERT INTO memory_embeddings (
-        memory_id, model_id, model_revision, vector_dim,
-        vector_store, vector_ref, content_hash, indexed_at
-      ) VALUES (
-        @memoryId, @modelId, @modelRevision, @vectorDim,
-        @vectorStore, @vectorRef, @contentHash, @indexedAt
-      )
-      ON CONFLICT(memory_id, model_id, vector_dim) DO UPDATE SET
-        model_revision = excluded.model_revision,
-        vector_store = excluded.vector_store,
-        vector_ref = excluded.vector_ref,
-        content_hash = excluded.content_hash,
-        indexed_at = excluded.indexed_at
-    `).run({
-      memoryId: input.memoryId,
-      modelId: String(input.modelId).trim(),
-      modelRevision: String(input.modelRevision || ''),
-      vectorDim: input.vectorDim,
-      vectorStore: input.vectorStore,
-      vectorRef: String(input.vectorRef).trim(),
-      contentHash: String(input.contentHash).trim(),
-      indexedAt
-    })
-
-    const embedding = this.getMemoryEmbedding(input.memoryId, input.modelId, input.vectorDim)
-    if (!embedding) throw new Error('Failed to load upserted memory embedding')
-    return embedding
-  }
-
-  getMemoryEmbeddingById(id: number): MemoryEmbedding | null {
-    const row = this.getDb().prepare('SELECT * FROM memory_embeddings WHERE id = ?').get(id) as MemoryEmbeddingRow | undefined
-    return row ? toMemoryEmbedding(row) : null
-  }
-
-  getMemoryEmbedding(memoryId: number, modelId: string, vectorDim: number): MemoryEmbedding | null {
-    const row = this.getDb().prepare(`
-      SELECT * FROM memory_embeddings
-      WHERE memory_id = ? AND model_id = ? AND vector_dim = ?
-    `).get(memoryId, modelId, vectorDim) as MemoryEmbeddingRow | undefined
-    return row ? toMemoryEmbedding(row) : null
-  }
-
-  listEmbeddingsForMemory(memoryId: number): MemoryEmbedding[] {
-    const rows = this.getDb().prepare(`
-      SELECT * FROM memory_embeddings
-      WHERE memory_id = ?
-      ORDER BY indexed_at DESC, id DESC
-    `).all(memoryId) as MemoryEmbeddingRow[]
-    return rows.map(toMemoryEmbedding)
-  }
-
-  deleteEmbeddingsByMemoryIds(memoryIds: number[]): number {
-    const ids = Array.from(new Set(memoryIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)))
-    if (ids.length === 0) return 0
-
-    const placeholders = ids.map(() => '?').join(',')
-    const result = this.getDb().prepare(`DELETE FROM memory_embeddings WHERE memory_id IN (${placeholders})`).run(...ids)
-    return result.changes
-  }
-
-  clearEmbeddingsByModel(modelId: string, vectorDim?: number): number {
-    const model = String(modelId || '').trim()
-    if (!model) return 0
-
-    const sql = Number.isInteger(vectorDim) && Number(vectorDim) > 0
-      ? 'DELETE FROM memory_embeddings WHERE model_id = ? AND vector_dim = ?'
-      : 'DELETE FROM memory_embeddings WHERE model_id = ?'
-    const result = Number.isInteger(vectorDim) && Number(vectorDim) > 0
-      ? this.getDb().prepare(sql).run(model, vectorDim)
-      : this.getDb().prepare(sql).run(model)
-    return result.changes
-  }
-
-  listStaleEmbeddings(options: { modelId?: string; vectorDim?: number; limit?: number } = {}): MemoryEmbedding[] {
-    const clauses = ['e.content_hash != m.content_hash']
-    const params: Record<string, unknown> = {}
-    if (options.modelId) {
-      clauses.push('e.model_id = @modelId')
-      params.modelId = options.modelId
-    }
-    if (Number.isInteger(options.vectorDim) && Number(options.vectorDim) > 0) {
-      clauses.push('e.vector_dim = @vectorDim')
-      params.vectorDim = options.vectorDim
-    }
-    params.limit = Math.max(1, Math.min(Math.floor(options.limit || 100), 1000))
-
-    const rows = this.getDb().prepare(`
-      SELECT e.* FROM memory_embeddings e
-      JOIN memory_items m ON m.id = e.memory_id
-      WHERE ${clauses.join(' AND ')}
-      ORDER BY e.indexed_at ASC
-      LIMIT @limit
-    `).all(params) as MemoryEmbeddingRow[]
-    return rows.map(toMemoryEmbedding)
-  }
-
   getStats(): MemoryDatabaseStats {
     const db = this.getDb()
     const itemRow = db.prepare('SELECT COUNT(*) AS count FROM memory_items').get() as { count: number }
-    const embeddingRow = db.prepare('SELECT COUNT(*) AS count FROM memory_embeddings').get() as { count: number }
-    const staleRow = db.prepare(`
-      SELECT COUNT(*) AS count
-      FROM memory_embeddings e
-      JOIN memory_items m ON m.id = e.memory_id
-      WHERE e.content_hash != m.content_hash
-    `).get() as { count: number }
 
     return {
-      itemCount: Number(itemRow.count || 0),
-      embeddingCount: Number(embeddingRow.count || 0),
-      staleEmbeddingCount: Number(staleRow.count || 0)
+      itemCount: Number(itemRow.count || 0)
     }
   }
 }

@@ -1,6 +1,29 @@
 import OpenAI from 'openai'
 import { proxyService } from '../proxyService'
-import type { AIStreamEvent, AIStreamToolCall } from '../../../../src/types/ai'
+
+export interface AIStreamToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
+export type AIStreamEvent =
+  | { type: 'reasoning_delta'; text: string }
+  | { type: 'content_delta'; text: string }
+  | { type: 'tool_call_delta'; index: number; delta: unknown }
+  | { type: 'tool_call_done'; toolCall: AIStreamToolCall }
+  | { type: 'tool_result'; toolCallId?: string; toolName: string; result: unknown; error?: string }
+  | { type: 'round_start' }
+  | {
+      type: 'message_done'
+      content: string
+      reasoningContent?: string
+      toolCalls?: AIStreamToolCall[]
+      finishReason?: string | null
+    }
 
 /**
  * AI 提供商基础接口
@@ -83,8 +106,6 @@ export interface NativeToolCallResult {
   message: OpenAI.Chat.ChatCompletionMessage & { reasoning_content?: string | null }
   finishReason?: string | null
 }
-
-export type { AIStreamEvent, AIStreamToolCall }
 
 type MutableToolCall = AIStreamToolCall
 

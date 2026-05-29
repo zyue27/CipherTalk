@@ -286,27 +286,6 @@ export async function startLocalIntegrationServices(ctx: MainProcessContext): Pr
     logStartupError('startup:mcp-client-restore-failed', e)
     console.error('[McpClient] 自动恢复连接失败:', e)
   })
-
-  try {
-    const hasConfiguredAccount = Boolean(
-      configService?.get('myWxid')
-      && configService?.get('dbPath')
-      && configService?.get('decryptKey')
-    )
-    if (!hasConfiguredAccount) {
-      markStartupMilestone('startup:agent-db-init-skip-unconfigured')
-      return
-    }
-
-    markStartupMilestone('startup:agent-db-init-start')
-    const cachePath = configService?.get('cachePath') as string | undefined
-    const { conversationStore } = await import('../services/aiagent/conversationStore')
-    conversationStore.init(cachePath || undefined)
-    markStartupMilestone('startup:agent-db-init-done')
-  } catch (e) {
-    logStartupError('startup:agent-db-init-failed', e)
-    console.error('[AIAgentConversationStore] 初始化失败:', e)
-  }
 }
 
 export function stopLocalIntegrationServices(): void {

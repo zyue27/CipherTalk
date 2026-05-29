@@ -1,7 +1,6 @@
 import type { MainProcessContext } from '../context'
 import { registerAccountHandlers } from './accountHandlers'
 import { registerActivationHandlers } from './activationHandlers'
-import { registerAiAgentHandlers } from './aiagentHandlers'
 import { registerAiHandlers } from './aiHandlers'
 import { registerAnalyticsHandlers } from './analyticsHandlers'
 import { registerAnnualReportHandlers } from './annualReportHandlers'
@@ -56,5 +55,4 @@ export function registerModularIpcHandlers(ctx: MainProcessContext): void {
   registerLogHandlers(ctx)
   registerSttHandlers(ctx)
   registerAiHandlers(ctx)
-  registerAiAgentHandlers(ctx)
 }

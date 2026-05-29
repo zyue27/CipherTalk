@@ -25,9 +25,7 @@ import ImageWindow from './pages/ImageWindow'
 import VideoWindow from './pages/VideoWindow'
 import BrowserWindowPage from './pages/BrowserWindowPage'
 import SplashPage from './pages/SplashPage'
-import AISummaryWindow from './pages/AISummaryWindow'
 import ChatHistoryPage from './pages/ChatHistoryPage'
-import AgentPage from './features/aiagent/AiAgentPage'
 import MomentsWindow from './pages/MomentsWindow'
 import { useAppStore } from './stores/appStore'
 import { useThemeStore } from './stores/themeStore'
@@ -334,13 +332,12 @@ function App() {
   const isMomentsWindow = location.pathname === '/moments-window'
   const isAnnualReportWindow = location.pathname === '/annual-report-window'
   const isAgreementWindow = location.pathname === '/agreement-window'
-  const isAISummaryWindow = location.pathname === '/ai-summary-window'
   const isWelcomeWindow = location.pathname === '/welcome-window'
 
   // 启动时自动检查配置并连接数据库
   useEffect(() => {
     // 独立窗口不需要自动连接主数据库
-    if (isChatWindow || isGroupAnalyticsWindow || isMomentsWindow || isAnnualReportWindow || isAgreementWindow || isAISummaryWindow || isWelcomeWindow || location.pathname === '/image-viewer-window') return
+    if (isChatWindow || isGroupAnalyticsWindow || isMomentsWindow || isAnnualReportWindow || isAgreementWindow || isWelcomeWindow || location.pathname === '/image-viewer-window') return
 
     const autoConnect = async () => {
       try {
@@ -408,7 +405,7 @@ function App() {
     }
 
     autoConnect()
-  }, [isChatWindow, isGroupAnalyticsWindow, isMomentsWindow, isAnnualReportWindow, isAgreementWindow, isAISummaryWindow, isWelcomeWindow, location.pathname, navigate, setDbConnected])
+  }, [isChatWindow, isGroupAnalyticsWindow, isMomentsWindow, isAnnualReportWindow, isAgreementWindow, isWelcomeWindow, location.pathname, navigate, setDbConnected])
 
   // 独立聊天窗口 - 只显示聊天页面，无侧边栏
   if (isChatWindow) {
@@ -444,11 +441,6 @@ function App() {
         <AnnualReportWindow />
       </div>
     )
-  }
-
-  // 独立 AI 摘要窗口
-  if (isAISummaryWindow) {
-    return <AISummaryWindow />
   }
 
   // 独立聊天记录窗口
@@ -540,11 +532,10 @@ function App() {
                 <p>7.1 本协议的订立、执行、解释及争议解决均适用中华人民共和国大陆地区法律。</p>
                 <p>7.2 因本协议或本软件使用所引起的任何争议，双方应首先友好协商解决；协商不成的，任何一方均可向开发者所在地有管辖权的人民法院提起诉讼。</p>
 
-                <h3>二、AI服务说明（补充协议）</h3>
-                <p>8.1 本软件提供的AI摘要功能调用第三方大模型服务（如智谱AI、DeepSeek等），相关对话数据将发送至第三方服务器进行处理。</p>
-                <p>8.2 发送给AI的数据仅包含您选择的时间范围内的文本消息内容，不会包含图片、视频等文件数据，也不会包含此外的其他隐私信息。</p>
-                <p>8.3 AI生成的内容仅供参考，不代表本软件开发者立场。用户在使用AI功能前应自行评估数据隐私风险。</p>
-                <p>8.4 本软件不对第三方AI服务的稳定性、准确性及数据安全性承担责任。</p>
+                <h3>二、第三方服务接入说明（补充协议）</h3>
+                <p>8.1 本软件仅保留第三方 AI 服务商接入配置能力，用于保存服务地址、模型名称及 API 密钥等本地配置。</p>
+                <p>8.2 用户主动测试连接或刷新模型列表时，软件会向所选服务商发起必要的网络请求。请自行确认所填服务商的隐私与合规政策。</p>
+                <p>8.3 本软件不对第三方服务的稳定性、准确性及数据安全性承担责任。</p>
 
                 <h3>三、隐私政策</h3>
 
@@ -608,7 +599,7 @@ function App() {
 
   // 主窗口 - 完整布局
   const disableContentOverflow = ['/data-management', '/settings'].includes(location.pathname)
-  const fullPageRoutes = ['/agent', '/home']
+  const fullPageRoutes = ['/home']
   const isFullPage = fullPageRoutes.includes(location.pathname)
 
   return (
@@ -715,7 +706,6 @@ function App() {
               <Route path="/mcp" element={<McpPage />} />
               <Route path="/export" element={<ExportPage />} />
               <Route path="/transcription-assistant" element={<TranscriptionAssistantPage />} />
-              <Route path="/agent" element={<AgentPage />} />
               <Route path="/chat-history/:sessionId/:messageId" element={<ChatHistoryPage />} />
             </Routes>
           </RouteGuard>

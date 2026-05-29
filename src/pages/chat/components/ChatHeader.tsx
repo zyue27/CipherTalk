@@ -1,7 +1,6 @@
-import { Aperture, BadgeCheck, BrainCircuit, Image as ImageIcon, Loader2, Mic, Origami, Radar, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react'
+import { Aperture, Image as ImageIcon, Loader2, Mic, RefreshCw } from 'lucide-react'
 import AppDatePicker from '../../../components/AppDatePicker'
 import type { ChatSession } from '../../../types/models'
-import type { SessionVectorIndexState } from '../../../types/ai'
 import { isGroupChat } from '../utils/messageGuards'
 import { SessionAvatar } from './SessionSidebar'
 
@@ -17,19 +16,6 @@ interface ChatHeaderProps {
   isLoadingMessages: boolean
   isUpdating: boolean
   onRefreshMessages: () => void | Promise<void>
-  isPreparingVectorIndex: boolean
-  vectorIndexState: SessionVectorIndexState | null
-  hasPendingVectorMessages: boolean
-  isVectorProviderUnavailable: boolean
-  vectorIndexBadgeLabel: string
-  vectorIndexPercent: number
-  vectorIndexHoverRows: Array<{ label: string; value: string }>
-  onVectorIndexClick: () => void | Promise<void>
-  isPreparingMemoryBuild: boolean
-  memoryBuildCount: number
-  memoryBuildBadgeLabel: string
-  memoryButtonTitle: string
-  onMemoryBuildClick: () => void | Promise<void>
   selectedDate: string
   onSelectedDateChange: (value: string) => void
   onJumpToDate: (dateValue?: string) => void | Promise<void>
@@ -49,19 +35,6 @@ export function ChatHeader({
   isLoadingMessages,
   isUpdating,
   onRefreshMessages,
-  isPreparingVectorIndex,
-  vectorIndexState,
-  hasPendingVectorMessages,
-  isVectorProviderUnavailable,
-  vectorIndexBadgeLabel,
-  vectorIndexPercent,
-  vectorIndexHoverRows,
-  onVectorIndexClick,
-  isPreparingMemoryBuild,
-  memoryBuildCount,
-  memoryBuildBadgeLabel,
-  memoryButtonTitle,
-  onMemoryBuildClick,
   selectedDate,
   onSelectedDateChange,
   onJumpToDate,
@@ -98,60 +71,6 @@ export function ChatHeader({
         >
           <RefreshCw size={18} className={isRefreshingMessages || isUpdating ? 'spin' : ''} />
         </button>
-        <div className="vector-index-action-wrapper">
-          <button
-            className={`icon-btn vector-index-btn ${isPreparingVectorIndex ? 'running active' : ''} ${vectorIndexState?.isVectorComplete ? 'complete' : ''} ${hasPendingVectorMessages ? 'pending' : ''}`}
-            onClick={onVectorIndexClick}
-            disabled={!currentSessionId || (isVectorProviderUnavailable && !isPreparingVectorIndex)}
-            aria-label={isPreparingVectorIndex ? '取消向量化' : '增量向量化当前聊天'}
-          >
-            {isVectorProviderUnavailable && !isPreparingVectorIndex ? (
-              <TriangleAlert size={18} />
-            ) : isPreparingVectorIndex ? (
-              <Radar size={18} className="vector-index-radar" />
-            ) : vectorIndexState?.isVectorComplete ? (
-              <BadgeCheck size={18} />
-            ) : (
-              <BrainCircuit size={18} />
-            )}
-            {vectorIndexBadgeLabel && (
-              <span className="vector-index-badge">{vectorIndexBadgeLabel}</span>
-            )}
-          </button>
-          <div className="vector-index-hover-panel" role="tooltip">
-            <div className="vector-hover-header">
-              <span>语义向量索引</span>
-              <strong>{vectorIndexPercent}%</strong>
-            </div>
-            <div className="vector-hover-progress">
-              <span style={{ width: `${vectorIndexPercent}%` }} />
-            </div>
-            <div className="vector-hover-rows">
-              {vectorIndexHoverRows.map((row) => (
-                <div key={row.label} className={row.label === '错误' ? 'error' : ''}>
-                  <span>{row.label}</span>
-                  <strong>{row.value}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <button
-          className={`icon-btn memory-build-btn ${isPreparingMemoryBuild ? 'running active' : ''} ${memoryBuildCount > 0 ? 'complete' : ''}`}
-          onClick={onMemoryBuildClick}
-          disabled={!currentSessionId || isPreparingMemoryBuild}
-          data-tooltip={memoryButtonTitle}
-          aria-label="构建当前聊天三层记忆"
-        >
-          {isPreparingMemoryBuild ? (
-            <Radar size={18} className="vector-index-radar" />
-          ) : (
-            <Origami size={18} />
-          )}
-          {memoryBuildBadgeLabel && (
-            <span className="vector-index-badge">{memoryBuildBadgeLabel}</span>
-          )}
-        </button>
         {!isGroupChat(currentSession.username) && (
           <button
             className="icon-btn moments-btn"
@@ -161,18 +80,6 @@ export function ChatHeader({
             <Aperture size={18} />
           </button>
         )}
-        <button
-          className="icon-btn ai-summary-btn"
-          onClick={() => {
-            window.electronAPI.window.openAISummaryWindow(
-              currentSession.username,
-              currentSession.displayName || currentSession.username
-            )
-          }}
-          data-tooltip="AI 摘要"
-        >
-          <Sparkles size={18} />
-        </button>
         <AppDatePicker
           mode="single"
           className="date-picker-wrapper"

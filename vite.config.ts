@@ -101,42 +101,6 @@ export default defineConfig(async () => {
           }
         },
         {
-          entry: 'electron/sessionQaWorker.ts',
-          vite: {
-            build: {
-              outDir: 'dist-electron',
-              rollupOptions: { external }
-            }
-          }
-        },
-        {
-          entry: 'electron/sessionVectorIndexWorker.ts',
-          vite: {
-            build: {
-              outDir: 'dist-electron',
-              rollupOptions: { external }
-            }
-          }
-        },
-        {
-          entry: 'electron/sessionMemoryBuildWorker.ts',
-          vite: {
-            build: {
-              outDir: 'dist-electron',
-              rollupOptions: { external }
-            }
-          }
-        },
-        {
-          entry: 'electron/agentToolWorker.ts',
-          vite: {
-            build: {
-              outDir: 'dist-electron',
-              rollupOptions: { external }
-            }
-          }
-        },
-        {
           entry: 'electron/mcp.ts',
           vite: {
             build: {

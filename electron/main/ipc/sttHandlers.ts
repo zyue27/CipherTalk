@@ -535,7 +535,4 @@ export function registerSttHandlers(ctx: MainProcessContext): void {
       return { installed: false, error: String(e) }
     }
   })
-
-  // AI 摘要相关
-
 }

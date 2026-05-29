@@ -48,6 +48,23 @@ export function registerCacheHandlers(ctx: MainProcessContext): void {
     return { success: true, skipped: true }
   })
 
+  ipcMain.handle('cache:clearAIData', async () => {
+    ctx.getLogService()?.info('Cache', '开始清除 AI 功能产生的数据库')
+    try {
+      const cacheService = new (await import('../../services/cacheService')).CacheService(ctx.getConfigService()!)
+      const result = await cacheService.clearAIData()
+      if (result.success) {
+        ctx.getLogService()?.info('Cache', 'AI 数据库清除成功', { deletedFiles: result.deletedFiles?.length || 0 })
+      } else {
+        ctx.getLogService()?.error('Cache', 'AI 数据库清除失败', { error: result.error, failedFiles: result.failedFiles })
+      }
+      return result
+    } catch (e) {
+      ctx.getLogService()?.error('Cache', 'AI 数据库清除异常', { error: String(e) })
+      return { success: false, error: String(e) }
+    }
+  })
+
   ipcMain.handle('cache:clearAll', async () => {
     ctx.getLogService()?.info('Cache', '开始清除所有缓存')
     try {

@@ -76,7 +76,7 @@ function makeMessage(overrides = {}) {
 
 async function main() {
   assertNoForbiddenPattern(/executeMcpTool|from .*mcp|Mcp/, 'MCP dependency')
-  assertNoForbiddenPattern(/chatService|httpApi|analyticsService|groupAnalyticsService|retrievalEngine|memoryDatabase|chatSearchIndexService|localRerankerService|localEmbeddingModelService/, 'business service dependency')
+  assertNoForbiddenPattern(/chatService|httpApi|analyticsService|groupAnalyticsService|retrievalEngine|memoryDatabase|chatSearchIndexService/, 'business service dependency')
 
   const nodeNames = require(fromRoot('electron', 'services', 'ai-agent', 'qa', 'nodeNames.ts'))
   assert.equal(nodeNames.AGENT_TOOL_NODE_NAMES.search_messages, '语义搜索')

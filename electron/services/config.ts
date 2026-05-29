@@ -42,7 +42,6 @@ interface ConfigSchema {
   cachePath: string
   lastOpenedDb: string
   lastSession: string
-  lastAgentConversationId: number
 
   // 导出相关
   exportPath: string
@@ -109,34 +108,6 @@ interface ConfigSchema {
       updatedAt: number
     }
   }
-  aiDefaultTimeRange: number
-  aiSummaryDetail: 'simple' | 'normal' | 'detailed'
-  aiSystemPromptPreset: 'default' | 'decision-focus' | 'action-focus' | 'risk-focus' | 'custom'
-  aiCustomSystemPrompt: string
-  aiEnableCache: boolean
-  aiEnableThinking: boolean  // 是否显示思考过程
-  aiMessageLimit: number     // 摘要提取的消息条数限制
-  agentReadLimit: number     // Agent 内置工具单次读取消息条数上限（500-2000）
-  aiAgentDecisionMaxTokens: number // 会话问答 Agent 每轮决策输出 token 上限
-  aiAgentAnswerMaxTokens: number   // 会话问答最终回答输出 token 上限
-  aiEmbeddingMode: 'local' | 'online'
-  aiEmbeddingModelProfile: string
-  aiEmbeddingVectorDims: Record<string, number>
-  aiEmbeddingDevice: 'cpu' | 'dml'
-  aiOnlineEmbeddingConfigs: Array<{
-    id: string
-    name: string
-    providerId: string
-    baseURL: string
-    apiKey: string
-    model: string
-    dim: number
-    createdAt: number
-    updatedAt: number
-  }>
-  aiCurrentOnlineEmbeddingConfigId: string
-  aiRerankEnabled: boolean
-  aiRerankerModelProfile: string
   mcpEnabled: boolean
   mcpExposeMediaPaths: boolean
   mcpProxyPort: number
@@ -156,7 +127,6 @@ const defaults: ConfigSchema = {
   cachePath: '',
   lastOpenedDb: '',
   lastSession: '',
-  lastAgentConversationId: 0,
   exportPath: '',
   theme: 'cloud-dancer',
   themeMode: 'light',
@@ -193,24 +163,6 @@ const defaults: ConfigSchema = {
   aiCurrentProvider: 'deepseek',
   aiProviderConfigs: {},  // 空对象，用户配置后填充
   aiProviderModelCache: {},
-  aiDefaultTimeRange: 7, // 默认7天
-  aiSummaryDetail: 'normal',
-  aiSystemPromptPreset: 'default',
-  aiCustomSystemPrompt: '',
-  aiEnableCache: true,
-  aiEnableThinking: true,  // 默认显示思考过程
-  aiMessageLimit: 3000,    // 默认3000条，用户可调至5000
-  agentReadLimit: 500,     // 默认500条
-  aiAgentDecisionMaxTokens: 2048,
-  aiAgentAnswerMaxTokens: 8192,
-  aiEmbeddingMode: 'local',
-  aiEmbeddingModelProfile: 'bge-large-zh-v1.5-int8',
-  aiEmbeddingVectorDims: {},
-  aiEmbeddingDevice: 'cpu',
-  aiOnlineEmbeddingConfigs: [],
-  aiCurrentOnlineEmbeddingConfigId: '',
-  aiRerankEnabled: true,
-  aiRerankerModelProfile: 'qwen3-reranker-0.6b-onnx-q8',
   mcpEnabled: false,
   mcpExposeMediaPaths: true,
   mcpProxyPort: 5032,
@@ -800,14 +752,6 @@ export class ConfigService {
 
   getAllAIProviderConfigs(): { [providerId: string]: { apiKey: string; model: string; baseURL?: string } } {
     return this.get('aiProviderConfigs')
-  }
-
-  getAIMessageLimit(): number {
-    return this.get('aiMessageLimit')
-  }
-
-  setAIMessageLimit(limit: number): void {
-    this.set('aiMessageLimit', limit)
   }
 
   getCacheBasePath(): string {

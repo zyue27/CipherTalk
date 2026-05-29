@@ -35,7 +35,7 @@ const tabs: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
   { id: 'database', label: '数据解密', icon: Database },
   { id: 'security', label: '安全设置', icon: Lock },
   { id: 'stt', label: '语音转文字', icon: Mic },
-  { id: 'ai', label: 'AI 摘要', icon: Sparkles },
+  { id: 'ai', label: 'AI 接入', icon: Sparkles },
   { id: 'data', label: '数据管理', icon: HardDrive },
   // { id: 'activation', label: '激活', icon: Shield },
   { id: 'about', label: '关于', icon: Info }
@@ -144,7 +144,7 @@ function SettingsLayout() {
   const [closeToTray, setCloseToTray] = useState(true)
   const [showAesKey, setShowAesKey] = useState(false)
   const [showClearDialog, setShowClearDialog] = useState<{
-    type: 'images' | 'emojis' | 'databases' | 'all' | 'currentAccount' | 'allAccounts'
+    type: 'images' | 'emojis' | 'aiData' | 'all' | 'currentAccount' | 'allAccounts'
     title: string
     message: string
   } | null>(null)
@@ -152,6 +152,7 @@ function SettingsLayout() {
     images: number
     emojis: number
     databases: number
+    aiData: number
     logs: number
     total: number
   } | null>(null)
@@ -180,14 +181,6 @@ function SettingsLayout() {
   const [aiProvider, setAiProviderState] = useState('deepseek')
   const [aiApiKey, setAiApiKeyState] = useState('')
   const [aiModel, setAiModelState] = useState('')
-  const [aiDefaultTimeRange, setAiDefaultTimeRangeState] = useState<number>(7)
-  const [aiSummaryDetail, setAiSummaryDetailState] = useState<'simple' | 'normal' | 'detailed'>('normal')
-  const [aiSystemPromptPreset, setAiSystemPromptPresetState] = useState<'default' | 'decision-focus' | 'action-focus' | 'risk-focus' | 'custom'>('default')
-  const [aiCustomSystemPrompt, setAiCustomSystemPromptState] = useState<string>('')
-  const [aiEnableThinking, setAiEnableThinkingState] = useState<boolean>(true)
-  const [aiMessageLimit, setAiMessageLimitState] = useState<number>(3000)
-  const [aiAgentDecisionMaxTokens, setAiAgentDecisionMaxTokensState] = useState<number>(2048)
-  const [aiAgentAnswerMaxTokens, setAiAgentAnswerMaxTokensState] = useState<number>(8192)
 
   // 日志相关状态
   const [logFiles, setLogFiles] = useState<Array<{ name: string; size: number; mtime: Date }>>([])
@@ -374,26 +367,10 @@ function SettingsLayout() {
       const savedAiProvider = await configService.getAiProvider()
       const savedAiApiKey = await configService.getAiApiKey()
       const savedAiModel = await configService.getAiModel()
-      const savedAiDefaultTimeRange = await configService.getAiDefaultTimeRange()
-      const savedAiSummaryDetail = await configService.getAiSummaryDetail()
-      const savedAiSystemPromptPreset = await configService.getAiSystemPromptPreset()
-      const savedAiCustomSystemPrompt = await configService.getAiCustomSystemPrompt()
-      const savedAiEnableThinking = await configService.getAiEnableThinking()
-      const savedAiMessageLimit = await configService.getAiMessageLimit()
-      const savedAiAgentDecisionMaxTokens = await configService.getAiAgentDecisionMaxTokens()
-      const savedAiAgentAnswerMaxTokens = await configService.getAiAgentAnswerMaxTokens()
 
       setAiProviderState(savedAiProvider)
       setAiApiKeyState(savedAiApiKey)
       setAiModelState(savedAiModel)
-      setAiDefaultTimeRangeState(savedAiDefaultTimeRange)
-      setAiSummaryDetailState(savedAiSummaryDetail)
-      setAiSystemPromptPresetState(savedAiSystemPromptPreset)
-      setAiCustomSystemPromptState(savedAiCustomSystemPrompt)
-      setAiEnableThinkingState(savedAiEnableThinking)
-      setAiMessageLimitState(savedAiMessageLimit)
-      setAiAgentDecisionMaxTokensState(savedAiAgentDecisionMaxTokens)
-      setAiAgentAnswerMaxTokensState(savedAiAgentAnswerMaxTokens)
 
       // 加载关闭行为配置
       const savedCloseToTray = await configService.getCloseToTray()
@@ -428,14 +405,6 @@ function SettingsLayout() {
         aiProvider: savedAiProvider,
         aiApiKey: savedAiApiKey,
         aiModel: savedAiModel,
-        aiDefaultTimeRange: savedAiDefaultTimeRange,
-        aiSummaryDetail: savedAiSummaryDetail,
-        aiSystemPromptPreset: savedAiSystemPromptPreset,
-        aiCustomSystemPrompt: savedAiCustomSystemPrompt,
-        aiEnableThinking: savedAiEnableThinking,
-        aiMessageLimit: savedAiMessageLimit,
-        aiAgentDecisionMaxTokens: savedAiAgentDecisionMaxTokens,
-        aiAgentAnswerMaxTokens: savedAiAgentAnswerMaxTokens,
         closeToTray: savedCloseToTray,
         editingAccountId: (editingAccount || activeAccount)?.id || ''
       }
@@ -652,7 +621,7 @@ function SettingsLayout() {
     setShowClearDialog({
       type: 'all',
       title: '清除所有',
-      message: '此操作将删除所有缓存数据（包括解密后的图片、表情包、数据库文件），清除后无法恢复。确定要继续吗？'
+      message: '此操作将删除所有缓存数据（包括解密后的图片、表情包、日志和历史 AI 功能数据库），清除后无法恢复。确定要继续吗？'
     })
   }
 
@@ -664,11 +633,11 @@ function SettingsLayout() {
     })
   }
 
-  const handleClearDatabases = () => {
+  const handleClearAIData = () => {
     setShowClearDialog({
-      type: 'databases',
-      title: '清除数据库',
-      message: '此操作将删除所有解密后的数据库缓存文件，清除后需要重新解密数据库才能使用聊天记录。确定要继续吗？'
+      type: 'aiData',
+      title: '清除 AI 数据库',
+      message: '此操作将删除历史 AI 摘要、AI 记忆、语义索引等功能产生的本地数据库，不会删除 AI 接入配置、API Key、模型和服务地址。确定要继续吗？'
     })
   }
 
@@ -700,8 +669,8 @@ function SettingsLayout() {
         case 'emojis':
           result = await window.electronAPI.cache.clearEmojis()
           break
-        case 'databases':
-          result = await window.electronAPI.cache.clearDatabases()
+        case 'aiData':
+          result = await window.electronAPI.cache.clearAIData()
           break
           case 'all':
             result = await window.electronAPI.cache.clearAll()
@@ -1275,14 +1244,6 @@ function SettingsLayout() {
       await configService.setAiProvider(storeConfig.aiProvider)
       await configService.setAiApiKey(storeConfig.aiApiKey)
       await configService.setAiModel(storeConfig.aiModel)
-      await configService.setAiDefaultTimeRange(storeConfig.aiDefaultTimeRange)
-      await configService.setAiSummaryDetail(storeConfig.aiSummaryDetail)
-      await configService.setAiSystemPromptPreset(storeConfig.aiSystemPromptPreset)
-      await configService.setAiCustomSystemPrompt(storeConfig.aiCustomSystemPrompt)
-      await configService.setAiEnableThinking(storeConfig.aiEnableThinking)
-      await configService.setAiMessageLimit(storeConfig.aiMessageLimit)
-      await configService.setAiAgentDecisionMaxTokens(storeConfig.aiAgentDecisionMaxTokens)
-      await configService.setAiAgentAnswerMaxTokens(storeConfig.aiAgentAnswerMaxTokens)
 
       await configService.setSttLanguages(storeConfig.sttLanguages)
       await configService.setSttModelType(storeConfig.sttModelType)

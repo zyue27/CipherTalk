@@ -27,7 +27,7 @@ import {
 const MCP_SESSION_KINDS = ['friend', 'group', 'official', 'other'] as const
 const MCP_CONTEXT_MODES = ['latest', 'around'] as const
 const MCP_MATCH_FIELDS = ['text', 'raw'] as const
-const MCP_SEARCH_RETRIEVAL_SOURCES = ['keyword_index', 'vector_index', 'scan'] as const
+const MCP_SEARCH_RETRIEVAL_SOURCES = ['keyword_index', 'scan'] as const
 const MCP_RESOLVE_NEXT_ACTIONS = ['get_messages', 'get_session_context', 'search_messages', 'list_contacts', 'list_sessions'] as const
 const PREVIEW_LIMIT = 3
 const PREVIEW_TEXT_LIMIT = 120
@@ -402,7 +402,6 @@ export const toolOutputSchemas = {
   }).passthrough(),
   search_memory: z.object({
     query: z.string(),
-    semanticQuery: z.string(),
     hits: z.array(memorySearchHitSchema),
     limit: z.number(),
     truncated: z.boolean(),

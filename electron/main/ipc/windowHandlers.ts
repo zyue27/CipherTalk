@@ -93,11 +93,6 @@ export function registerWindowHandlers(ctx: MainProcessContext): void {
     ctx.getWindowManager().openBrowserWindow(url, title)
   })
 
-  ipcMain.handle('window:openAISummaryWindow', (_, sessionId: string, sessionName: string) => {
-    ctx.getWindowManager().openAISummaryWindow(sessionId, sessionName)
-    return true
-  })
-
   ipcMain.handle('window:openChatHistoryWindow', (_, sessionId: string, messageId: number) => {
     ctx.getWindowManager().openChatHistoryWindow(sessionId, messageId)
     return true

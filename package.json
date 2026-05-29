@@ -35,7 +35,6 @@
     "cli:typecheck": "npm --prefix CipherTalk-CLI run typecheck",
     "cli:test": "npm --prefix CipherTalk-CLI test -- --run",
     "cli:sync": "npm --prefix CipherTalk-CLI run sync:upstream",
-    "eval:retrieval": "node scripts/run-retrieval-evaluator.cjs",
     "test:agent-qa": "node scripts/test-agent-qa-independent.cjs",
     "preview": "vite preview",
     "electron:dev": "node scripts/clean-dist-electron.cjs && vite --mode electron",
@@ -43,7 +42,6 @@
     "postinstall": "electron-rebuild"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@radix-ui/react-slot": "^1.2.4",
     "better-sqlite3": "^12.5.0",
@@ -57,11 +55,9 @@
     "https-proxy-agent": "^7.0.6",
     "jieba-wasm": "^2.2.0",
     "koffi": "^2.9.0",
-    "onnxruntime-node": "^1.23.2",
     "openai": "^4.70.0",
     "sherpa-onnx-node": "^1.12.23",
     "silk-wasm": "^3.7.1",
-    "sqlite-vec": "^0.1.9",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.1.12"
   },
@@ -223,14 +219,12 @@
       "node_modules/@fast-csv/*/build/**/*",
       "node_modules/fast-csv/build/**/*",
       "!node_modules/**/deps/**/*",
-      "node_modules/sqlite-vec*/**/*",
       "node_modules/koffi/build/**/*"
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/**/*",
       "node_modules/silk-wasm/**/*",
       "node_modules/sherpa-onnx-node/**/*",
-      "node_modules/sqlite-vec*/**/*",
       "node_modules/koffi/**/*",
       "node_modules/zod/**/*",
       "dist-electron/*Worker.js",

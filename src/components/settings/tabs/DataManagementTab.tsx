@@ -20,11 +20,11 @@ function DataManagementTab({ showMessage, reloadConfig, onClearCurrentAccountCon
   const setExportDefaultDateRange = (value: number) => setField('exportDefaultDateRange', value)
   const [defaultExportPath, setDefaultExportPath] = useState('')
   const [showClearDialog, setShowClearDialog] = useState<{
-    type: 'images' | 'emojis' | 'databases' | 'all' | 'currentAccount' | 'allAccounts'
+    type: 'images' | 'emojis' | 'aiData' | 'all' | 'currentAccount' | 'allAccounts'
     title: string
     message: string
   } | null>(null)
-  const [cacheSize, setCacheSize] = useState<{ images: number; emojis: number; databases: number; logs: number; total: number } | null>(null)
+  const [cacheSize, setCacheSize] = useState<{ images: number; emojis: number; databases: number; aiData: number; logs: number; total: number } | null>(null)
   const [isLoadingCacheSize, setIsLoadingCacheSize] = useState(false)
   const [logFiles, setLogFiles] = useState<Array<{ name: string; size: number; mtime: Date }>>([])
   const [selectedLogFile, setSelectedLogFile] = useState('')
@@ -165,8 +165,12 @@ function DataManagementTab({ showMessage, reloadConfig, onClearCurrentAccountCon
 
   const handleClearImages = () => setShowClearDialog({ type: 'images', title: '清除图片', message: '此操作将删除所有解密后的图片文件，清除后无法恢复。确定要继续吗？' })
   const handleClearEmojis = () => setShowClearDialog({ type: 'emojis', title: '清除表情包', message: '此操作将删除所有解密后的表情包缓存文件，清除后无法恢复。确定要继续吗？' })
-  const handleClearDatabases = () => setShowClearDialog({ type: 'databases', title: '清除数据库', message: '此操作将删除所有解密后的数据库缓存文件，清除后需要重新解密数据库才能使用聊天记录。确定要继续吗？' })
-  const handleClearAllCache = () => setShowClearDialog({ type: 'all', title: '清除所有', message: '此操作将删除所有缓存数据（包括解密后的图片、表情包、数据库文件），清除后无法恢复。确定要继续吗？' })
+  const handleClearAIData = () => setShowClearDialog({
+    type: 'aiData',
+    title: '清除 AI 数据库',
+    message: '此操作将删除历史 AI 摘要、AI 记忆、语义索引等功能产生的本地数据库，不会删除 AI 接入配置、API Key、模型和服务地址。确定要继续吗？'
+  })
+  const handleClearAllCache = () => setShowClearDialog({ type: 'all', title: '清除所有', message: '此操作将删除所有缓存数据（包括解密后的图片、表情包、日志和历史 AI 功能数据库），清除后无法恢复。确定要继续吗？' })
   const handleClearCurrentAccount = () => setShowClearDialog({ type: 'currentAccount', title: '清除当前账号', message: '此操作将清除当前账号的密钥、路径等配置，不影响其他账号。确定要继续吗？' })
   const handleClearAllAccounts = () => setShowClearDialog({ type: 'allAccounts', title: '清空全部账号配置', message: '此操作将删除所有账号配置和账号级密钥/路径信息，不删除全局主题、AI、MCP、HTTP API 等通用设置。确定要继续吗？' })
   const handleClearCurrentAccountConfig = onClearCurrentAccountConfig
@@ -178,7 +182,7 @@ function DataManagementTab({ showMessage, reloadConfig, onClearCurrentAccountCon
       switch (showClearDialog.type) {
         case 'images': result = await window.electronAPI.cache.clearImages(); break
         case 'emojis': result = await window.electronAPI.cache.clearEmojis(); break
-        case 'databases': result = await window.electronAPI.cache.clearDatabases(); break
+        case 'aiData': result = await window.electronAPI.cache.clearAIData(); break
         case 'all': result = await window.electronAPI.cache.clearAll(); break
         case 'currentAccount': result = await window.electronAPI.cache.clearCurrentAccount(false); break
         case 'allAccounts': result = await window.electronAPI.cache.clearAllAccountConfigs(); break
@@ -275,10 +279,11 @@ function DataManagementTab({ showMessage, reloadConfig, onClearCurrentAccountCon
             <div className="cache-card">
               <div className="cache-card-header">
                 <Database size={20} className="cache-card-icon" />
-                <span className="cache-card-label">数据库缓存</span>
+                <span className="cache-card-label">AI 数据库</span>
               </div>
-              <div className="cache-card-size">{formatFileSize(cacheSize.databases)}</div>
-              <button type="button" className="btn btn-secondary cache-card-btn" onClick={handleClearDatabases}>
+              <div className="cache-card-size">{formatFileSize(cacheSize.aiData)}</div>
+              <div className="cache-card-desc">历史摘要、记忆、语义索引</div>
+              <button type="button" className="btn btn-secondary cache-card-btn" onClick={handleClearAIData}>
                 <Trash2 size={14} /> 清除
               </button>
             </div>

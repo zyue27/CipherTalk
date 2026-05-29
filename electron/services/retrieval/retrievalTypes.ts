@@ -1,13 +1,11 @@
 import type { Message } from '../chatService'
 import type { MemoryEvidenceRef, MemoryItem, MemorySourceType } from '../memory/memorySchema'
 
-export type RetrievalSourceName = 'memory_fts' | 'memory_like' | 'message_ann'
+export type RetrievalSourceName = 'memory_fts' | 'memory_like'
 
 export type RetrievalEngineOptions = {
   query: string
-  semanticQuery?: string
   keywordQueries?: string[]
-  semanticQueries?: string[]
   sessionId?: string
   sourceTypes?: MemorySourceType[]
   startTimeMs?: number
@@ -16,10 +14,7 @@ export type RetrievalEngineOptions = {
   senderUsername?: string
   limit?: number
   keywordLimit?: number
-  annLimit?: number
   rrfK?: number
-  rerank?: boolean
-  rerankLimit?: number
   expandEvidence?: boolean
 }
 
@@ -63,7 +58,6 @@ export type RetrievalRerankStats = {
 
 export type RetrievalEngineResult = {
   query: string
-  semanticQuery: string
   hits: RetrievalHit[]
   sourceStats: RetrievalSourceStats[]
   rerank: RetrievalRerankStats
@@ -80,7 +74,6 @@ export type RetrievalEvalCase = {
   id: string
   sessionId: string
   question: string
-  semanticQuery?: string
   expectedEvidence: RetrievalEvalEvidenceRef[]
   expectedKeywords?: string[]
   startTimeMs?: number
@@ -90,7 +83,7 @@ export type RetrievalEvalCase = {
   limit?: number
 }
 
-export type RetrievalEvalMode = 'keyword' | 'vector' | 'hybrid'
+export type RetrievalEvalMode = 'keyword'
 
 export type RetrievalEvalMessage = {
   localId: number
@@ -105,7 +98,7 @@ export type RetrievalEvalHit = {
   excerpt: string
   matchedField: 'text' | 'raw'
   score: number
-  retrievalSource: 'keyword_index' | 'vector_index'
+  retrievalSource: 'keyword_index'
 }
 
 export type RetrievalEvalCaseResult = {

@@ -402,7 +402,7 @@ export interface McpSearchHit {
   retrievalSource?: McpSearchRetrievalSource
 }
 
-export type McpSearchRetrievalSource = 'keyword_index' | 'vector_index' | 'scan'
+export type McpSearchRetrievalSource = 'keyword_index' | 'scan'
 
 export interface McpSearchVectorStatus {
   requested: boolean
@@ -502,7 +502,6 @@ export interface McpMemorySearchHit {
 
 export interface McpMemorySearchPayload {
   query: string
-  semanticQuery: string
   hits: McpMemorySearchHit[]
   limit: number
   truncated: boolean

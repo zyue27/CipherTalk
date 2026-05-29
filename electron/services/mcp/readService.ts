@@ -9,7 +9,6 @@ import { exportService, type ExportOptions as ExportServiceOptions } from '../ex
 import { groupAnalyticsService } from '../groupAnalyticsService'
 import { imageDecryptService } from '../imageDecryptService'
 import { snsService } from '../snsService'
-import { localRerankerService, type RerankDocument } from '../retrieval/rerankerService'
 import { retrievalEngine } from '../retrieval/retrievalEngine'
 import type { RetrievalExpandedEvidence, RetrievalHit } from '../retrieval/retrievalTypes'
 import { chatSearchIndexService } from '../search/chatSearchIndexService'
@@ -81,7 +80,6 @@ const MAX_TARGETED_SCAN_GLOBAL = 200000
 const MAX_STATISTICS_SCAN_MESSAGES = 200000
 const STATISTICS_SCAN_BATCH_SIZE = 1000
 const MAX_STATISTICS_SAMPLES = 5
-const MAX_RERANK_CANDIDATES = 120
 
 const listSessionsArgsSchema = z.object({
   q: z.string().optional(),
@@ -143,7 +141,6 @@ const listContactsArgsSchema = z.object({
 
 const searchMessagesArgsSchema = z.object({
   query: z.string().trim().min(1),
-  semanticQuery: z.string().trim().min(1).optional(),
   sessionId: z.string().trim().min(1).optional(),
   sessionIds: z.array(z.string().trim().min(1)).max(MAX_SEARCH_SESSIONS).optional(),
   startTime: z.number().int().positive().optional(),
@@ -154,15 +151,12 @@ const searchMessagesArgsSchema = z.object({
   matchMode: z.enum(['substring', 'exact']).optional(),
   limit: z.number().int().positive().optional(),
   includeRaw: z.boolean().optional(),
-  includeMediaPaths: z.boolean().optional(),
-  rerank: z.boolean().optional()
+  includeMediaPaths: z.boolean().optional()
 })
 
 const searchMemoryArgsSchema = z.object({
   query: z.string().trim().min(1),
-  semanticQuery: z.string().trim().min(1).optional(),
   keywordQueries: z.array(z.string().trim().min(1)).max(12).optional(),
-  semanticQueries: z.array(z.string().trim().min(1)).max(12).optional(),
   sessionId: z.string().trim().min(1).optional(),
   sourceTypes: z.array(z.enum(MCP_MEMORY_SOURCE_TYPES)).optional(),
   startTime: z.number().int().positive().optional(),
@@ -170,7 +164,6 @@ const searchMemoryArgsSchema = z.object({
   direction: z.enum(['in', 'out']).optional(),
   senderUsername: z.string().trim().min(1).optional(),
   limit: z.number().int().positive().optional(),
-  rerank: z.boolean().optional(),
   expandEvidence: z.boolean().optional(),
   includeRaw: z.boolean().optional(),
   includeMediaPaths: z.boolean().optional()
@@ -440,28 +433,6 @@ function compactText(value: string, limit: number): string {
   const normalized = String(value || '').replace(/\s+/g, ' ').trim()
   if (!normalized) return ''
   return normalized.length > limit ? `${normalized.slice(0, limit - 1)}…` : normalized
-}
-
-function buildRerankDocumentText(hit: SearchRawHit): string {
-  const message = hit.message
-  const text = compactText(String(message.parsedContent || hit.excerpt || message.rawContent || ''), 1200)
-  const raw = text ? '' : compactText(String(message.rawContent || ''), 400)
-  const sender = message.isSend ? 'self' : (message.senderUsername || 'unknown')
-  const timestampMs = toTimestampMs(Number(message.createTime || 0))
-  const timestamp = timestampMs ? new Date(timestampMs).toISOString() : 'unknown'
-  return [
-    `session: ${hit.session.displayName || hit.session.sessionId}`,
-    `time: ${timestamp}`,
-    `direction: ${message.isSend ? 'out' : 'in'}`,
-    `sender: ${sender}`,
-    `source: ${hit.retrievalSource || 'unknown'}`,
-    `excerpt: ${compactText(hit.excerpt || text || raw, 400)}`,
-    `message: ${text || raw}`
-  ].filter(Boolean).join('\n')
-}
-
-function buildRerankDocumentId(hit: SearchRawHit): string {
-  return `${hit.session.sessionId}:${hit.message.localId}:${hit.message.createTime}:${hit.message.sortSeq}`
 }
 
 function buildTimeRange(startTime?: number, endTime?: number) {
@@ -2712,9 +2683,7 @@ export class McpReadService {
 
     const result = await retrievalEngine.search({
       query: args.data.query,
-      semanticQuery: args.data.semanticQuery,
       keywordQueries: args.data.keywordQueries,
-      semanticQueries: args.data.semanticQueries,
       sessionId,
       sourceTypes: args.data.sourceTypes,
       startTimeMs: args.data.startTime ? toTimestampMs(args.data.startTime) : undefined,
@@ -2722,7 +2691,6 @@ export class McpReadService {
       direction: args.data.direction,
       senderUsername: args.data.senderUsername,
       limit,
-      rerank: args.data.rerank,
       expandEvidence: args.data.expandEvidence
     })
 
@@ -2732,7 +2700,6 @@ export class McpReadService {
     })))
     const payload: McpMemorySearchPayload = {
       query: result.query,
-      semanticQuery: result.semanticQuery,
       hits,
       limit,
       truncated: result.hits.length > limit,
@@ -2797,29 +2764,25 @@ export class McpReadService {
         const indexedRawHitMap = new Map<string, SearchRawHit>()
         let indexedMessages = 0
         let indexedTruncated = false
-        const semanticQuery = args.data.semanticQuery || args.data.query
-        const rerankEnabled = args.data.rerank ?? localRerankerService.isEnabled()
-        const rerankerProfile = localRerankerService.getProfile()
         const vectorSearch: McpSearchVectorStatus = {
-          requested: matchMode !== 'exact' && Boolean(semanticQuery),
+          requested: false,
           attempted: false,
           providerAvailable: false,
           indexComplete: false,
           hitCount: 0,
           indexedMessages: 0,
-          vectorizedMessages: 0
+          vectorizedMessages: 0,
+          skippedReason: 'vector_search_removed'
         }
         const rerank: McpSearchRerankStatus = {
-          requested: rerankEnabled && matchMode !== 'exact' && Boolean(semanticQuery),
+          requested: false,
           attempted: false,
-          enabled: rerankEnabled,
+          enabled: false,
           modelAvailable: false,
           candidateCount: 0,
           rerankedCount: 0,
-          model: rerankerProfile.displayName
+          skippedReason: 'rerank_removed'
         }
-        const vectorSkippedReasons = new Set<string>()
-        const vectorErrors = new Set<string>()
         const hitKey = (hit: Pick<SearchRawHit, 'session' | 'message'>) => `${hit.session.sessionId}:${hit.message.localId}:${hit.message.createTime}:${hit.message.sortSeq}`
         const addIndexedRawHit = (hit: SearchRawHit) => {
           const key = hitKey(hit)
@@ -2858,63 +2821,14 @@ export class McpReadService {
 
           indexedMessages += indexed.indexedCount
           indexedTruncated = indexedTruncated || indexed.truncated
+          vectorSearch.indexedMessages += indexed.indexedCount
 
-          const hybridHits: Array<(typeof indexed.hits)[number] & { retrievalSource: McpSearchRetrievalSource }> = indexed.hits.map((hit) => ({
+          const indexedHits: Array<(typeof indexed.hits)[number] & { retrievalSource: McpSearchRetrievalSource }> = indexed.hits.map((hit) => ({
             ...hit,
             retrievalSource: 'keyword_index' as const
           }))
-          const vectorState = chatSearchIndexService.getSessionVectorIndexState(session.sessionId)
-          vectorSearch.providerAvailable = vectorSearch.providerAvailable || Boolean(vectorState.vectorProviderAvailable)
-          vectorSearch.indexComplete = vectorSearch.indexComplete || vectorState.isVectorComplete
-          vectorSearch.indexedMessages += vectorState.indexedCount
-          vectorSearch.vectorizedMessages += vectorState.vectorizedCount
-          vectorSearch.model = vectorState.vectorModelName || vectorState.vectorModel || vectorSearch.model
 
-          const shouldRunVectorSearch = vectorSearch.requested && vectorState.isVectorComplete
-          if (shouldRunVectorSearch) {
-            try {
-              vectorSearch.attempted = true
-              const vectorIndexed = await chatSearchIndexService.searchSessionByVector({
-                sessionId: session.sessionId,
-                query: semanticQuery,
-                limit: Math.max(limit * 4, limit + 20),
-                matchMode,
-                startTimeMs,
-                endTimeMs,
-                direction: args.data.direction,
-                senderUsername: args.data.senderUsername,
-                onProgress: async (progress) => {
-                  await reportProgress(reporter, {
-                    stage: progress.stage === 'searching_index' ? 'streaming_hits' : 'scanning_messages',
-                    message: progress.message,
-                    sessionsScanned: targetSessions.indexOf(session) + 1,
-                    messagesScanned: progress.indexedCount ?? progress.messagesScanned
-                  })
-                }
-              })
-
-              indexedTruncated = indexedTruncated || vectorIndexed.truncated
-              vectorSearch.hitCount += vectorIndexed.hits.length
-              vectorSearch.indexedMessages = Math.max(vectorSearch.indexedMessages, vectorIndexed.indexedCount)
-              vectorSearch.vectorizedMessages = Math.max(vectorSearch.vectorizedMessages, vectorIndexed.vectorizedCount)
-              vectorSearch.model = vectorIndexed.model || vectorSearch.model
-              hybridHits.push(...vectorIndexed.hits.map((hit) => ({
-                ...hit,
-                retrievalSource: 'vector_index' as const
-              })))
-            } catch (error) {
-              vectorErrors.add(compactText(String(error), 160))
-              console.warn('[McpReadService] Local vector search failed, keeping keyword results:', error)
-            }
-          } else if (!vectorSearch.requested) {
-            vectorSkippedReasons.add(matchMode === 'exact' ? 'exact_match_mode' : 'empty_semantic_query')
-          } else if (!vectorState.vectorProviderAvailable) {
-            vectorSkippedReasons.add('vector_provider_unavailable')
-          } else if (!vectorState.isVectorComplete) {
-            vectorSkippedReasons.add('vector_index_incomplete')
-          }
-
-          for (const hit of hybridHits) {
+          for (const hit of indexedHits) {
             if (!messageMatchesFilters(hit.message, {
               startTimeMs,
               endTimeMs,
@@ -2936,70 +2850,10 @@ export class McpReadService {
           }
         }
 
-        if (vectorSkippedReasons.size > 0) {
-          vectorSearch.skippedReason = Array.from(vectorSkippedReasons).join(',')
-        }
-        if (vectorErrors.size > 0) {
-          vectorSearch.error = Array.from(vectorErrors).join('; ')
-        }
-
         indexedRawHits.push(...indexedRawHitMap.values())
         indexedRawHits.sort((a, b) => b.score - a.score || compareMessageCursorDesc(a.message, b.message))
 
-        let rankedIndexedRawHits = indexedRawHits
-        if (!rerank.requested) {
-          rerank.skippedReason = !rerank.enabled ? 'rerank_disabled' : (matchMode === 'exact' ? 'exact_match_mode' : 'empty_semantic_query')
-        } else if (indexedRawHits.length === 0) {
-          rerank.skippedReason = 'no_candidates'
-        } else {
-          const candidateCount = Math.min(indexedRawHits.length, Math.max(limit * 6, limit + 20), MAX_RERANK_CANDIDATES)
-          rerank.candidateCount = candidateCount
-          try {
-            const rerankerStatus = await localRerankerService.getModelStatus(rerankerProfile.id)
-            rerank.modelAvailable = rerankerStatus.exists
-            if (!rerankerStatus.exists) {
-              rerank.skippedReason = 'reranker_model_not_downloaded'
-            } else {
-              rerank.attempted = true
-              const candidateHits = indexedRawHits.slice(0, candidateCount)
-              const hitById = new Map(candidateHits.map((hit) => [buildRerankDocumentId(hit), hit]))
-              const documents: RerankDocument[] = candidateHits.map((hit) => ({
-                id: buildRerankDocumentId(hit),
-                text: buildRerankDocumentText(hit),
-                originalScore: hit.score
-              }))
-              const reranked = await localRerankerService.rerank(semanticQuery, documents, {
-                profileId: rerankerProfile.id,
-                limit: candidateCount
-              })
-              const rerankedIds = new Set<string>()
-              const rerankedHits = reranked
-                .map((item) => {
-                  const hit = hitById.get(item.id)
-                  if (!hit) return null
-                  rerankedIds.add(item.id)
-                  return {
-                    ...hit,
-                    score: item.combinedScore
-                  } satisfies SearchRawHit
-                })
-                .filter((hit): hit is SearchRawHit => Boolean(hit))
-              const candidateRemainder = candidateHits.filter((hit) => !rerankedIds.has(buildRerankDocumentId(hit)))
-              const tailHits = indexedRawHits.slice(candidateCount)
-              rankedIndexedRawHits = [
-                ...rerankedHits,
-                ...candidateRemainder,
-                ...tailHits
-              ]
-              rerank.rerankedCount = rerankedHits.length
-            }
-          } catch (error) {
-            rerank.error = compactText(String(error), 160)
-            console.warn('[McpReadService] Local rerank failed, keeping recall order:', error)
-          }
-        }
-
-        const hits = await Promise.all(rankedIndexedRawHits.slice(0, limit).map(async (hit): Promise<McpSearchHit> => ({
+        const hits = await Promise.all(indexedRawHits.slice(0, limit).map(async (hit): Promise<McpSearchHit> => ({
           session: hit.session,
           message: await normalizeMessage(hit.session.sessionId, hit.message, {
             includeMediaPaths,
@@ -3062,21 +2916,16 @@ export class McpReadService {
     let truncated = false
     let bestScore = Number.NEGATIVE_INFINITY
     let hitTargetReached = false
-    const scanVectorStates = exhaustiveTargetedSearch
-      ? targetSessions.map((session) => chatSearchIndexService.getSessionVectorIndexState(session.sessionId))
-      : []
     const scanVectorSearch: McpSearchVectorStatus | undefined = exhaustiveTargetedSearch
       ? {
-        requested: matchMode !== 'exact' && Boolean(args.data.semanticQuery || args.data.query),
+        requested: false,
         attempted: false,
-        providerAvailable: scanVectorStates.some((state) => Boolean(state.vectorProviderAvailable)),
-        indexComplete: scanVectorStates.some((state) => state.isVectorComplete),
+        providerAvailable: false,
+        indexComplete: false,
         hitCount: 0,
-        indexedMessages: scanVectorStates.reduce((sum, state) => sum + state.indexedCount, 0),
-        vectorizedMessages: scanVectorStates.reduce((sum, state) => sum + state.vectorizedCount, 0),
-        model: scanVectorStates.find((state) => state.vectorModelName || state.vectorModel)?.vectorModelName
-          || scanVectorStates.find((state) => state.vectorModel)?.vectorModel,
-        skippedReason: 'indexed_search_unavailable'
+        indexedMessages: 0,
+        vectorizedMessages: 0,
+        skippedReason: 'vector_search_removed'
       }
       : undefined
     await reportProgress(reporter, {

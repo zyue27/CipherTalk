@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import { Copy, Download, Loader2, Sparkles, X } from 'lucide-react'
+import { Copy, Download, Loader2, X } from 'lucide-react'
 import type { ChatSession, Message } from '../../../types/models'
 import { isGroupChat, isSystemMessage } from '../utils/messageGuards'
 import { formatDateDivider, shouldShowDateDivider } from '../utils/time'
@@ -142,8 +142,6 @@ export function SharePosterModal({ session, messages, myAvatarUrl, onClose, show
 
   const [themeId, setThemeId] = useState('default')
   const [customThemes, setCustomThemes] = useState<CustomPosterTheme[]>([])
-  const [aiDesc, setAiDesc] = useState('')
-  const [aiBusy, setAiBusy] = useState(false)
   const [cssDraft, setCssDraft] = useState<{ id: string; css: string } | null>(null)
   const [hlRange, setHlRange] = useState<[number, number] | null>(null)
 
@@ -328,37 +326,6 @@ export function SharePosterModal({ session, messages, myAvatarUrl, onClose, show
     if (hlRef.current) hlRef.current.scrollTop = top
   }
 
-  const handleGenerate = async () => {
-    const description = aiDesc.trim()
-    if (!description || aiBusy) return
-    setAiBusy(true)
-    try {
-      const res = await window.electronAPI.ai.generatePosterTheme({ description })
-      if (res.success && res.css && scopePosterCss(res.css)) {
-        const theme: CustomPosterTheme = {
-          id: createCustomThemeId(),
-          name: description.length > 14 ? `${description.slice(0, 14)}…` : description,
-          css: res.css,
-          createdAt: Date.now()
-        }
-        // 追加到样式库，不覆盖已有的自定义样式
-        persistCustomThemes([...customThemes, theme])
-        selectTheme(theme.id)
-        setAiDesc('')
-        showTopToast('已保存为新的自定义样式', true)
-      } else if (res.success) {
-        showTopToast('AI 返回的样式无效，请换个描述再试', false)
-      } else {
-        showTopToast(res.error || 'AI 生成失败，请检查 AI 配置', false)
-      }
-    } catch (e) {
-      console.error('[SharePoster] AI 生成失败', e)
-      showTopToast('AI 生成失败', false)
-    } finally {
-      setAiBusy(false)
-    }
-  }
-
   const handleSave = async () => {
     if (saving || copying) return
     const node = cardRef.current
@@ -451,28 +418,10 @@ export function SharePosterModal({ session, messages, myAvatarUrl, onClose, show
               </div>
             </div>
 
+            {selectedCustom && (
             <div className="poster-panel__section poster-panel__section--fill">
-              <div className="poster-panel__label"><Sparkles size={13} />AI 定制</div>
+              <div className="poster-panel__label">自定义样式</div>
               <div className="poster-ai-panel">
-                <textarea
-                  className="poster-ai-input"
-                  placeholder="描述你想要的风格，例如：粉色渐变背景、文艺手写感的标题。每次生成都会保存为一个新样式。"
-                  value={aiDesc}
-                  onChange={(e) => setAiDesc(e.target.value)}
-                  rows={4}
-                  disabled={aiBusy}
-                />
-                <button
-                  type="button"
-                  className="poster-btn poster-btn--primary poster-ai-gen"
-                  onClick={handleGenerate}
-                  disabled={aiBusy || !aiDesc.trim()}
-                >
-                  {aiBusy ? <Loader2 size={14} className="poster-spin" /> : <Sparkles size={14} />}
-                  {aiBusy ? '生成中…' : '生成并保存'}
-                </button>
-
-                {selectedCustom && (
                   <div className="poster-css-editor">
                     <div className="poster-css-editor__head">
                       <span className="poster-css-editor__label">样式代码 · 可手动微调</span>
@@ -517,9 +466,9 @@ export function SharePosterModal({ session, messages, myAvatarUrl, onClose, show
                       改完点「保存修改」生效。仅配色类属性有效，排版/尺寸属性会被自动忽略。
                     </p>
                   </div>
-                )}
               </div>
             </div>
+            )}
           </div>
 
           <div className="poster-panel__actions">

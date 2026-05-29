@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Home, MessageSquare, BarChart3, Users, FileText, Database, Settings,
-  Download, Aperture, Network, Bot, FileAudio, Boxes,
+  Download, Aperture, Network, FileAudio, Boxes,
   type LucideIcon
 } from 'lucide-react'
 import MacOSDock, { type DockApp } from '@/components/ui/mac-os-dock'
@@ -120,7 +120,6 @@ function BottomDock() {
     { id: 'data-management', name: '数据管理', icon: makeIcon(Database, 'linear-gradient(135deg, #607D8B 0%, #455A64 100%)') },
     { id: 'open-api', name: '开放接口', icon: makeIcon(Network, 'linear-gradient(135deg, #00BCD4 0%, #0097A7 100%)') },
     { id: 'mcp', name: 'MCP & Skills', icon: makeIcon(Boxes, 'linear-gradient(135deg, #EC407A 0%, #C2185B 100%)') },
-    { id: 'agent', name: 'Agent', icon: makeIcon(Bot, 'linear-gradient(135deg, #7E57C2 0%, #5E35B1 100%)') },
     { id: 'settings', name: '设置', icon: makeIcon(Settings, 'linear-gradient(135deg, #6E7B85 0%, #424A52 100%)') },
   ]
 
@@ -137,7 +136,6 @@ function BottomDock() {
       case 'data-management': navigate('/data-management'); break
       case 'open-api': navigate('/open-api'); break
       case 'mcp': navigate('/mcp'); break
-      case 'agent': navigate('/agent'); break
       case 'settings': navigate('/settings'); break
     }
   }

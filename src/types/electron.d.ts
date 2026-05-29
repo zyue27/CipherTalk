@@ -1,33 +1,4 @@
 import type { ChatSession, Message, Contact, ContactInfo } from './models'
-import type {
-  EmbeddingDevice,
-  EmbeddingMode,
-  EmbeddingDeviceStatus,
-  EmbeddingModelDownloadProgress,
-  EmbeddingModelProfile,
-  EmbeddingModelStatus,
-  OnlineEmbeddingConfig,
-  OnlineEmbeddingConfigInput,
-  OnlineEmbeddingProviderInfo,
-  OnlineEmbeddingTestResult,
-  AIStreamEvent,
-  SessionQAConversationDetail,
-  SessionQAConversationSummary,
-  SessionQAHistoryMessage,
-  SessionQAJobEvent,
-  SessionQAProgressEvent,
-  SessionQACancelResult,
-  SessionQAStartResult,
-  SessionQAResult,
-  SessionMemoryBuildProgressEvent,
-  SessionMemoryBuildState,
-  SessionProfileMemoryBuildResult,
-  SessionProfileMemoryState,
-  SessionVectorIndexProgressEvent,
-  SessionVectorIndexState,
-  SummaryResult,
-  SummaryStructuredAnalysis
-} from './ai'
 import type { AccountProfile } from './account'
 
 
@@ -113,7 +84,6 @@ export interface ElectronAPI {
     openVideoPlayerWindow: (videoPath: string, videoWidth?: number, videoHeight?: number) => Promise<void>
     openBrowserWindow: (url: string, title?: string) => Promise<void>
     resizeToFitVideo: (videoWidth: number, videoHeight: number) => Promise<void>
-    openAISummaryWindow: (sessionId: string, sessionName: string) => Promise<boolean>
     openChatHistoryWindow: (sessionId: string, messageId: number) => Promise<boolean>
     onImageListUpdate: (callback: (data: { imageList: ImageListItem[], currentIndex: number }) => void) => () => void
   }
@@ -969,6 +939,7 @@ export interface ElectronAPI {
     clearImages: () => Promise<{ success: boolean; error?: string }>
     clearEmojis: () => Promise<{ success: boolean; error?: string }>
     clearDatabases: () => Promise<{ success: boolean; error?: string }>
+    clearAIData: () => Promise<{ success: boolean; error?: string; deletedFiles?: string[]; failedFiles?: Array<{ path: string; error: string }> }>
     clearAll: () => Promise<{ success: boolean; error?: string }>
     clearConfig: () => Promise<{ success: boolean; error?: string }>
     clearCurrentAccount: (deleteLocalData?: boolean) => Promise<{ success: boolean; error?: string }>
@@ -980,6 +951,7 @@ export interface ElectronAPI {
         images: number
         emojis: number
         databases: number
+        aiData: number
         logs: number
         total: number
       }
@@ -1138,7 +1110,7 @@ export interface ElectronAPI {
       totalFiles: number
     }) => void) => () => void
   }
-  // AI 摘要
+  // AI 接入
   ai: {
     getProviders: () => Promise<Array<{
       id: string
@@ -1152,6 +1124,7 @@ export interface ElectronAPI {
         output: number
       }
       website?: string
+      logo?: string
     }>>
     getProxyStatus: () => Promise<{
       success: boolean
@@ -1181,60 +1154,10 @@ export interface ElectronAPI {
       models?: string[]
       error?: string
     }>
-    generatePosterTheme: (options: { description: string; provider?: string; apiKey?: string; model?: string }) => Promise<{
-      success: boolean
-      css?: string
-      error?: string
-    }>
     estimateCost: (messageCount: number, provider: string) => Promise<{
       success: boolean
       tokens?: number
       cost?: number
-      error?: string
-    }>
-    getUsageStats: (startDate?: string, endDate?: string) => Promise<{
-      success: boolean
-      stats?: any
-      error?: string
-    }>
-    getSummaryHistory: (sessionId: string, limit?: number) => Promise<{
-      success: boolean
-      history?: SummaryResult[]
-      error?: string
-    }>
-    listSessionQAConversations: (sessionId: string, limit?: number) => Promise<{
-      success: boolean
-      conversations?: SessionQAConversationSummary[]
-      error?: string
-    }>
-    getSessionQAConversation: (conversationId: number) => Promise<{
-      success: boolean
-      conversation?: SessionQAConversationDetail
-      error?: string
-    }>
-    createSessionQAConversation: (options: { sessionId: string; sessionName?: string; linkedSummaryId?: number }) => Promise<{
-      success: boolean
-      conversation?: SessionQAConversationSummary
-      error?: string
-    }>
-    renameSessionQAConversation: (conversationId: number, title: string) => Promise<{
-      success: boolean
-      error?: string
-    }>
-    deleteSessionQAConversation: (conversationId: number) => Promise<{
-      success: boolean
-      error?: string
-    }>
-    deleteSummary: (id: number) => Promise<{
-      success: boolean
-      error?: string
-    }>
-    renameSummary: (id: number, customName: string) => Promise<{
-      success: boolean
-      error?: string
-    }>
-    cleanExpiredCache: () => Promise<{
-      success: boolean
       error?: string
     }>
     readGuide: (guideName: string) => Promise<{
@@ -1242,300 +1165,8 @@ export interface ElectronAPI {
       content?: string
       error?: string
     }>
-    generateSummary: (sessionId: string, timeRange: number, options: {
-      provider: string
-      apiKey: string
-      model: string
-      detail: 'simple' | 'normal' | 'detailed'
-      systemPromptPreset?: 'default' | 'decision-focus' | 'action-focus' | 'risk-focus' | 'custom'
-      customSystemPrompt?: string
-      customRequirement?: string
-      sessionName?: string
-      enableThinking?: boolean
-    }) => Promise<{
-      success: boolean
-      result?: SummaryResult
-      error?: string
-    }>
-    askSessionQuestion: (options: {
-      sessionId: string
-      sessionName?: string
-      question: string
-      summaryText?: string
-      structuredAnalysis?: SummaryStructuredAnalysis
-      history?: SessionQAHistoryMessage[]
-      provider: string
-      apiKey: string
-      model: string
-      enableThinking?: boolean
-    }) => Promise<{
-      success: boolean
-      result?: SessionQAResult
-      error?: string
-    }>
-    startSessionQuestion: (options: {
-      requestId?: string
-      conversationId?: number
-      sessionId: string
-      sessionName?: string
-      question: string
-      summaryText?: string
-      structuredAnalysis?: SummaryStructuredAnalysis
-      history?: SessionQAHistoryMessage[]
-      provider: string
-      apiKey: string
-      model: string
-      enableThinking?: boolean
-    }) => Promise<SessionQAStartResult>
-    cancelSessionQuestion: (requestId: string) => Promise<SessionQACancelResult>
-    getSessionVectorIndexState: (sessionId: string) => Promise<{
-      success: boolean
-      result?: SessionVectorIndexState
-      error?: string
-    }>
-    prepareSessionVectorIndex: (options: { sessionId: string }) => Promise<{
-      success: boolean
-      result?: SessionVectorIndexState
-      error?: string
-    }>
-    cancelSessionVectorIndex: (sessionId: string) => Promise<{
-      success: boolean
-      result?: SessionVectorIndexState
-      error?: string
-    }>
-    getSessionMemoryBuildState: (sessionId: string) => Promise<{
-      success: boolean
-      result?: SessionMemoryBuildState
-      error?: string
-    }>
-    prepareSessionMemory: (options: { sessionId: string }) => Promise<{
-      success: boolean
-      result?: SessionMemoryBuildState
-      error?: string
-    }>
-    getSessionProfileMemoryState: (sessionId: string) => Promise<{
-      success: boolean
-      result?: SessionProfileMemoryState
-      error?: string
-    }>
-    buildSessionProfileMemory: (options: {
-      sessionId: string
-      sessionName?: string
-      provider: string
-      apiKey: string
-      model: string
-    }) => Promise<{
-      success: boolean
-      result?: SessionProfileMemoryBuildResult
-      error?: string
-    }>
-    getEmbeddingModelProfiles: () => Promise<{
-      success: boolean
-      result?: EmbeddingModelProfile[]
-      currentProfileId?: string
-      embeddingMode?: EmbeddingMode
-      error?: string
-    }>
-    setEmbeddingMode: (mode: EmbeddingMode) => Promise<{
-      success: boolean
-      result?: EmbeddingMode
-      error?: string
-    }>
-    setEmbeddingModelProfile: (profileId: string) => Promise<{
-      success: boolean
-      result?: string
-      error?: string
-    }>
-    setEmbeddingVectorDim: (profileId: string, dim: number) => Promise<{
-      success: boolean
-      result?: number
-      vectorModelId?: string
-      error?: string
-    }>
-    getEmbeddingDeviceStatus: () => Promise<{
-      success: boolean
-      result?: EmbeddingDeviceStatus
-      embeddingMode?: EmbeddingMode
-      error?: string
-    }>
-    setEmbeddingDevice: (device: EmbeddingDevice) => Promise<{
-      success: boolean
-      result?: EmbeddingDevice
-      status?: EmbeddingDeviceStatus
-      error?: string
-    }>
-    getEmbeddingModelStatus: (profileId?: string) => Promise<{
-      success: boolean
-      result?: EmbeddingModelStatus
-      error?: string
-    }>
-    downloadEmbeddingModel: (profileId?: string) => Promise<{
-      success: boolean
-      result?: EmbeddingModelStatus
-      error?: string
-    }>
-    cancelEmbeddingModelDownload: (profileId?: string) => Promise<{
-      success: boolean
-      cancelled: boolean
-      error?: string
-    }>
-    clearEmbeddingModel: (profileId?: string) => Promise<{
-      success: boolean
-      result?: EmbeddingModelStatus
-      error?: string
-    }>
-    getOnlineEmbeddingProviders: () => Promise<{
-      success: boolean
-      result?: OnlineEmbeddingProviderInfo[]
-      error?: string
-    }>
-    listOnlineEmbeddingConfigs: () => Promise<{
-      success: boolean
-      result?: OnlineEmbeddingConfig[]
-      currentConfigId?: string
-      error?: string
-    }>
-    saveOnlineEmbeddingConfig: (payload: OnlineEmbeddingConfigInput) => Promise<{
-      success: boolean
-      result?: OnlineEmbeddingConfig
-      error?: string
-    }>
-    deleteOnlineEmbeddingConfig: (configId: string) => Promise<{
-      success: boolean
-      result?: { deleted: boolean; currentConfigId: string; configs: OnlineEmbeddingConfig[] }
-      error?: string
-    }>
-    setCurrentOnlineEmbeddingConfig: (configId: string) => Promise<{
-      success: boolean
-      result?: OnlineEmbeddingConfig
-      error?: string
-    }>
-    testOnlineEmbeddingConfig: (payload: OnlineEmbeddingConfigInput) => Promise<{
-      success: boolean
-      result?: OnlineEmbeddingTestResult
-      error?: string
-    }>
-    clearSemanticVectorIndex: (vectorModel?: string) => Promise<{
-      success: boolean
-      result?: { success: boolean; deletedCount: number; vectorModel: string }
-      error?: string
-    }>
-    onSummaryChunk: (callback: (chunk: string) => void) => () => void
-    onSessionQAChunk: (callback: (chunk: string) => void) => () => void
-    onSessionQAProgress: (callback: (event: SessionQAProgressEvent) => void) => () => void
-    onSessionQAEvent: (callback: (event: SessionQAJobEvent) => void) => () => void
-    onSessionQAConversationUpdated: (callback: (event: SessionQAConversationDetail) => void) => () => void
-    onSessionVectorIndexProgress: (callback: (event: SessionVectorIndexProgressEvent) => void) => () => void
-    onSessionMemoryBuildProgress: (callback: (event: SessionMemoryBuildProgressEvent) => void) => () => void
-    onEmbeddingModelDownloadProgress: (callback: (event: EmbeddingModelDownloadProgress) => void) => () => void
   }
-
-  // 统一 AI Agent 对话
-  aiagent: {
-    send(opts: AiAgentSendOptions): Promise<AiAgentSendResult>
-    cancel(requestId: string): Promise<{ success: boolean; requestId?: string; error?: string }>
-    listConversations(scope: AiAgentScope): Promise<{ success: boolean; conversations?: AiAgentConversationSummary[]; error?: string }>
-    loadConversation(id: number): Promise<{ success: boolean; conversation?: AiAgentConversationDetail; error?: string }>
-    newConversation(scope: AiAgentScope, title?: string): Promise<{ success: boolean; id?: number; conversation?: AiAgentConversationDetail; error?: string }>
-    deleteConversation(id: number): Promise<{ success: boolean; error?: string }>
-    updateTitle(id: number, title: string): Promise<{ success: boolean; error?: string }>
-    getLastConversationId(scope: AiAgentScope): Promise<{ success: boolean; id?: number; error?: string }>
-    appendLocalMessages(opts: {
-      conversationId?: number
-      scope: AiAgentScope
-      messages: Array<{
-        role: 'user' | 'assistant'
-        content?: string
-        blocks?: unknown[]
-      }>
-    }): Promise<{ success: boolean; conversationId?: number; error?: string }>
-    generateTitle(opts: {
-      conversationId: number
-      userMessage: string
-      assistantResponse: string
-      provider: AiAgentProviderCfg
-    }): Promise<{ success: boolean; title?: string; error?: string }>
-    onStreamEvent(cb: (data: { requestId: string; event: AIStreamEvent }) => void): () => void
-    onProgress(cb: (event: AiAgentProgressEvent) => void): () => void
-    onDone(cb: (data: { requestId: string; conversationId?: number }) => void): () => void
-    onError(cb: (data: { requestId: string; message: string }) => void): () => void
-    onConversationUpdated(cb: (conversation: AiAgentConversationDetail) => void): () => void
-    removeListeners(): void
-  }
-
 }
-
-export type AiAgentScope =
-  | { kind: 'session'; sessionId: string; sessionName?: string }
-  | { kind: 'global' }
-
-export interface AiAgentProviderCfg {
-  provider: string
-  apiKey: string
-  model: string
-  enableThinking?: boolean
-  temperature?: number
-}
-
-export interface AiAgentSendOptions {
-  requestId: string
-  scope: AiAgentScope
-  conversationId?: number
-  history: Array<{ role: 'user' | 'assistant'; content: string }>
-  message: string
-  provider: AiAgentProviderCfg
-  commandHint?: string
-  forceThinking?: boolean
-  readLimit?: number
-  skillIds?: string[]
-  scopedSessions?: Array<{ id: string; name: string }>
-}
-
-export interface AiAgentSendResult {
-  success: boolean
-  requestId: string
-  conversationId?: number
-  error?: string
-}
-
-export interface AiAgentProgressEvent {
-  id: string
-  stage: string
-  status: 'running' | 'completed' | 'failed' | string
-  title: string
-  displayName?: string
-  nodeName?: string
-  detail?: string
-  toolName?: string
-  query?: string
-  count?: number
-  createdAt?: number
-  requestId?: string
-  source?: string
-  elapsedMs?: number
-  diagnostics?: string[]
-}
-
-export interface AiAgentConversationSummary {
-  id: number
-  title: string
-  preview: string
-  updatedAt: number
-}
-
-export interface AiAgentMessageRecord {
-  id: number
-  conversationId: number
-  role: string
-  content: string
-  blocksJson?: string | null
-  createdAt: number
-}
-
-export interface AiAgentConversationDetail extends AiAgentConversationSummary {
-  messages: AiAgentMessageRecord[]
-}
-
 export interface ExportOptions {
   format: 'chatlab' | 'chatlab-jsonl' | 'json' | 'html' | 'txt' | 'excel' | 'sql'
   dateRange?: { start: number; end: number } | null

@@ -1,5 +1,5 @@
 export const MEMORY_DB_NAME = 'agent_memory.db'
-export const MEMORY_SCHEMA_VERSION = '2'
+export const MEMORY_SCHEMA_VERSION = '3'
 
 export const MEMORY_SOURCE_TYPES = [
   'message',
@@ -11,15 +11,7 @@ export const MEMORY_SOURCE_TYPES = [
   'media'
 ] as const
 
-export const MEMORY_VECTOR_STORES = [
-  'sqlite_vec0',
-  'sqlite_vec1',
-  'lancedb',
-  'qdrant'
-] as const
-
 export type MemorySourceType = (typeof MEMORY_SOURCE_TYPES)[number]
-export type MemoryVectorStoreName = (typeof MEMORY_VECTOR_STORES)[number]
 
 export type MemoryEvidenceRef = {
   sessionId: string
@@ -69,29 +61,6 @@ export type MemoryItemInput = {
   sourceRefs?: MemoryEvidenceRef[]
 }
 
-export type MemoryEmbedding = {
-  id: number
-  memoryId: number
-  modelId: string
-  modelRevision: string
-  vectorDim: number
-  vectorStore: MemoryVectorStoreName
-  vectorRef: string
-  contentHash: string
-  indexedAt: number
-}
-
-export type MemoryEmbeddingInput = {
-  memoryId: number
-  modelId: string
-  modelRevision?: string
-  vectorDim: number
-  vectorStore: MemoryVectorStoreName
-  vectorRef: string
-  contentHash: string
-  indexedAt?: number
-}
-
 export type MemoryItemRow = {
   id: number
   memory_uid: string
@@ -113,22 +82,8 @@ export type MemoryItemRow = {
   updated_at: number
 }
 
-export type MemoryEmbeddingRow = {
-  id: number
-  memory_id: number
-  model_id: string
-  model_revision: string
-  vector_dim: number
-  vector_store: string
-  vector_ref: string
-  content_hash: string
-  indexed_at: number
-}
-
 export type MemoryDatabaseStats = {
   itemCount: number
-  embeddingCount: number
-  staleEmbeddingCount: number
 }
 
 export type SessionMemoryBuildProgressStage =

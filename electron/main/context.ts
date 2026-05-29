@@ -39,7 +39,6 @@ export interface WindowManager {
   ): BrowserWindow
   openVideoPlayerWindow(videoPath: string, videoWidth?: number, videoHeight?: number): BrowserWindow
   openBrowserWindow(url: string, title?: string): BrowserWindow
-  openAISummaryWindow(sessionId: string, sessionName: string): BrowserWindow
   openChatHistoryWindow(sessionId: string, messageId: number): BrowserWindow
   completeWelcome(): boolean
   isChatWindowOpen(): boolean

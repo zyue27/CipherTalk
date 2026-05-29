@@ -221,7 +221,6 @@ export function createWindowManager(ctx: MainProcessContext): WindowManager {
   let annualReportWindow: BrowserWindow | null = null
   let agreementWindow: BrowserWindow | null = null
   let purchaseWindow: BrowserWindow | null = null
-  let aiSummaryWindow: BrowserWindow | null = null
   let welcomeWindow: BrowserWindow | null = null
   let chatHistoryWindow: BrowserWindow | null = null
 
@@ -946,56 +945,6 @@ export function createWindowManager(ctx: MainProcessContext): WindowManager {
       }
 
       return win
-    },
-
-    openAISummaryWindow(sessionId: string, sessionName: string) {
-      if (aiSummaryWindow && !aiSummaryWindow.isDestroyed()) {
-        aiSummaryWindow.close()
-        aiSummaryWindow = null
-      }
-
-      const isDark = nativeTheme.shouldUseDarkColors
-      aiSummaryWindow = new BrowserWindow({
-        width: 1100,
-        height: 760,
-        minWidth: 900,
-        minHeight: 600,
-        ...getWindowIconOptions(ctx),
-        webPreferences: {
-          preload: join(__dirname, 'preload.js'),
-          devTools: ctx.allowDevTools,
-          contextIsolation: true,
-          nodeIntegration: false,
-          webSecurity: false
-        },
-        frame: false,
-        titleBarStyle: 'hidden',
-        titleBarOverlay: {
-          color: isDark ? '#2A2A2A' : '#F0F0F0',
-          symbolColor: isDark ? '#FFFFFF' : '#000000',
-          height: 40
-        },
-        show: false,
-        backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF',
-        autoHideMenuBar: true
-      })
-
-      aiSummaryWindow.once('ready-to-show', () => aiSummaryWindow?.show())
-      const queryParams = `${getThemeQueryParams(ctx)}&sessionId=${encodeURIComponent(sessionId)}&sessionName=${encodeURIComponent(sessionName)}`
-      if (process.env.VITE_DEV_SERVER_URL) {
-        aiSummaryWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?${queryParams}#/ai-summary-window`)
-        setupDevToolsShortcut(aiSummaryWindow, () => aiSummaryWindow)
-      } else {
-        aiSummaryWindow.loadFile(join(__dirname, '../dist/index.html'), {
-          search: queryParams,
-          hash: '/ai-summary-window'
-        })
-      }
-
-      aiSummaryWindow.on('closed', () => {
-        aiSummaryWindow = null
-      })
-      return aiSummaryWindow
     },
 
     completeWelcome() {
