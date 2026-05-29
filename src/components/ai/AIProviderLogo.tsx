@@ -1,4 +1,4 @@
-import { Clipdrop, DeepSeek, Doubao, Gemini, Kimi, Ollama, OpenAI, ProviderIcon, Qwen, SiliconCloud, XiaomiMiMo, XAI, Yuanbao, Zhipu } from '@lobehub/icons'
+import { Anthropic, Clipdrop, DeepSeek, Doubao, Gemini, Kimi, Ollama, OpenAI, ProviderIcon, Qwen, SiliconCloud, XiaomiMiMo, XAI, Yuanbao, Zhipu } from '@lobehub/icons'
 
 type AIProviderLogoProps = {
   providerId?: string
@@ -10,6 +10,7 @@ type AIProviderLogoProps = {
 
 const SUPPORTED_PROVIDER_IDS = new Set([
   'openai',
+  'anthropic',
   'minimax',
   'gemini',
   'zhipu',
@@ -24,6 +25,8 @@ const SUPPORTED_PROVIDER_IDS = new Set([
 
 function normalizeProviderId(providerId?: string) {
   if (!providerId) return ''
+  if (providerId === 'custom-responses') return 'openai'
+  if (providerId === 'openai-compatible') return 'custom'
   if (providerId === 'siliconflow') return 'siliconcloud'
   if (providerId === 'xiaomi') return 'xiaomimimo'
   return providerId
@@ -58,6 +61,10 @@ export default function AIProviderLogo({ providerId, logo, alt, className, size 
 
   if (normalizedProviderId === 'openai') {
     return <OpenAI size={size} className={className} />
+  }
+
+  if (normalizedProviderId === 'anthropic') {
+    return <Anthropic size={size} className={className} />
   }
 
   if (normalizedProviderId === 'qwen') {

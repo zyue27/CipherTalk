@@ -1,19 +1,11 @@
 import { ConfigService } from '../config'
-import { ZhipuProvider, ZhipuMetadata } from './providers/zhipu'
-import { DeepSeekProvider, DeepSeekMetadata } from './providers/deepseek'
-import { QwenProvider, QwenMetadata } from './providers/qwen'
-import { DoubaoProvider, DoubaoMetadata } from './providers/doubao'
-import { KimiProvider, KimiMetadata } from './providers/kimi'
-import { SiliconFlowProvider, SiliconFlowMetadata } from './providers/siliconflow'
-import { XiaomiProvider, XiaomiMetadata } from './providers/xiaomi'
-import { TencentProvider, TencentMetadata } from './providers/tencent'
-import { XAIProvider, XAIMetadata } from './providers/xai'
-import { OpenAIProvider, OpenAIMetadata } from './providers/openai'
-import { MiniMaxProvider, MiniMaxMetadata } from './providers/minimax'
-import { GeminiProvider, GeminiMetadata } from './providers/gemini'
-import { OllamaProvider, OllamaMetadata } from './providers/ollama'
-import { CustomProvider, CustomMetadata } from './providers/custom'
 import { AIProvider } from './providers/base'
+import {
+  CatalogAIProvider,
+  getModelsDevModels,
+  getProviderDefinition,
+  getProviderDefinitions
+} from './providers/catalog'
 
 class AIService {
   private configService: ConfigService
@@ -23,22 +15,7 @@ class AIService {
   }
 
   getAllProviders() {
-    return [
-      OpenAIMetadata,
-      MiniMaxMetadata,
-      GeminiMetadata,
-      XAIMetadata,
-      DeepSeekMetadata,
-      ZhipuMetadata,
-      QwenMetadata,
-      DoubaoMetadata,
-      KimiMetadata,
-      SiliconFlowMetadata,
-      XiaomiMetadata,
-      TencentMetadata,
-      OllamaMetadata,
-      CustomMetadata
-    ]
+    return getProviderDefinitions()
   }
 
   createProvider(providerName?: string, apiKey?: string, baseURLOverride?: string): AIProvider {
@@ -47,58 +24,23 @@ class AIService {
 
   private getProvider(providerName?: string, apiKey?: string, baseURLOverride?: string): AIProvider {
     const name = providerName || this.configService.getAICurrentProvider() || 'deepseek'
-
-    let key = apiKey
-    if (!key) {
-      const providerConfig = this.configService.getAIProviderConfig(name)
-      key = providerConfig?.apiKey
+    const definition = getProviderDefinition(name)
+    if (!definition) {
+      throw new Error(`不支持的提供商: ${name}`)
     }
 
-    if (!key && name !== 'ollama') {
+    const providerConfig = this.configService.getAIProviderConfig(name)
+    const key = apiKey || providerConfig?.apiKey || ''
+    const baseURL = baseURLOverride || providerConfig?.baseURL || definition.baseURL
+
+    if (!key && !definition.optionalApiKey) {
       throw new Error('未配置API密钥')
     }
-
-    switch (name) {
-      case 'custom': {
-        const customConfig = this.configService.getAIProviderConfig('custom')
-        const customBaseURL = baseURLOverride || customConfig?.baseURL
-        if (!customBaseURL) {
-          throw new Error('自定义服务需要配置服务地址')
-        }
-        return new CustomProvider(key || '', customBaseURL)
-      }
-      case 'ollama': {
-        const ollamaConfig = this.configService.getAIProviderConfig('ollama')
-        const baseURL = baseURLOverride || ollamaConfig?.baseURL || 'http://localhost:11434/v1'
-        return new OllamaProvider(key || 'ollama', baseURL)
-      }
-      case 'openai':
-        return new OpenAIProvider(key!)
-      case 'minimax':
-        return new MiniMaxProvider(key!)
-      case 'gemini':
-        return new GeminiProvider(key!)
-      case 'zhipu':
-        return new ZhipuProvider(key!)
-      case 'deepseek':
-        return new DeepSeekProvider(key!)
-      case 'qwen':
-        return new QwenProvider(key!)
-      case 'doubao':
-        return new DoubaoProvider(key!)
-      case 'kimi':
-        return new KimiProvider(key!)
-      case 'siliconflow':
-        return new SiliconFlowProvider(key!)
-      case 'xiaomi':
-        return new XiaomiProvider(key!)
-      case 'tencent':
-        return new TencentProvider(key!)
-      case 'xai':
-        return new XAIProvider(key!)
-      default:
-        throw new Error(`不支持的提供商: ${name}`)
+    if (definition.allowCustomBaseURL && !baseURL) {
+      throw new Error('自定义服务需要配置服务地址')
     }
+
+    return new CatalogAIProvider(definition, key || name, baseURL)
   }
 
   estimateTokens(text: string): number {
@@ -190,7 +132,7 @@ class AIService {
     return left.lower.localeCompare(right.lower, 'en', { numeric: true, sensitivity: 'base' })
   }
 
-  private mergeProviderModelLists(provider: AIProvider, remoteModels: string[]): string[] {
+  private mergeModelLists(provider: AIProvider, ...modelLists: string[][]): string[] {
     const result: string[] = []
     const seen = new Set<string>()
     const addModel = (model: string) => {
@@ -203,7 +145,8 @@ class AIService {
     }
 
     provider.models.forEach(addModel)
-    remoteModels
+    modelLists
+      .flat()
       .filter(model => !seen.has(provider.getModelIdentity(model) || model.toLowerCase()))
       .sort((a, b) => this.compareDiscoveredModels(a, b))
       .forEach(addModel)
@@ -213,10 +156,34 @@ class AIService {
 
   async listProviderModels(options: { provider: string; apiKey?: string; baseURL?: string }): Promise<{ success: boolean; models?: string[]; error?: string }> {
     try {
-      const provider = this.getProvider(options.provider, options.apiKey, options.baseURL)
-      const models = this.mergeProviderModelLists(
+      const definition = getProviderDefinition(options.provider)
+      if (!definition) {
+        throw new Error(`不支持的提供商: ${options.provider}`)
+      }
+      const providerConfig = this.configService.getAIProviderConfig(options.provider)
+      const key = options.apiKey || providerConfig?.apiKey || ''
+      const provider = new CatalogAIProvider(
+        definition,
+        key || options.provider,
+        options.baseURL || providerConfig?.baseURL || definition.baseURL
+      )
+      const [modelsDevModels, remoteModels] = await Promise.all([
+        getModelsDevModels(options.provider).catch((error) => {
+          console.warn('[AIService] models.dev 获取模型列表失败:', error instanceof Error ? error.message : String(error))
+          return []
+        }),
+        key || definition.optionalApiKey
+          ? provider.listModels().catch((error) => {
+              console.warn('[AIService] 服务商模型列表获取失败:', error instanceof Error ? error.message : String(error))
+              return []
+            })
+          : Promise.resolve([])
+      ])
+
+      const models = this.mergeModelLists(
         provider,
-        this.normalizeRemoteModelList(await provider.listModels())
+        this.normalizeRemoteModelList(modelsDevModels),
+        this.normalizeRemoteModelList(remoteModels)
       )
       if (models.length === 0) {
         return { success: false, error: '服务商未返回可用模型列表' }

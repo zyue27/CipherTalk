@@ -1,5 +1,56 @@
-import OpenAI from 'openai'
-import { proxyService } from '../proxyService'
+import { generateText, jsonSchema, streamText, tool, type LanguageModel, type ModelMessage, type ToolSet } from 'ai'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createOpenAI } from '@ai-sdk/openai'
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+
+export namespace OpenAI {
+  export namespace Chat {
+    export type ChatCompletionMessageParam = ModelMessage | {
+      role: 'system' | 'user' | 'assistant' | 'tool'
+      content?: string | null
+      name?: string
+      tool_call_id?: string
+      tool_calls?: ChatCompletionMessageToolCall[]
+    }
+
+    export type ChatCompletionTool = {
+      type: 'function'
+      function: {
+        name: string
+        description?: string
+        parameters?: Record<string, unknown>
+      }
+    }
+
+    export type ChatCompletionToolChoiceOption =
+      | 'none'
+      | 'auto'
+      | 'required'
+      | {
+          type: 'function'
+          function: {
+            name: string
+          }
+        }
+
+    export type ChatCompletionMessageToolCall = {
+      id: string
+      type: 'function'
+      function: {
+        name: string
+        arguments: string
+      }
+    }
+
+    export type ChatCompletionMessage = {
+      role: 'assistant'
+      content?: string | null
+      tool_calls?: ChatCompletionMessageToolCall[]
+      reasoning_content?: string | null
+    }
+  }
+}
 
 export interface AIStreamToolCall {
   id: string
@@ -33,8 +84,8 @@ export interface AIProvider {
   displayName: string
   models: string[]
   pricing: {
-    input: number   // 每1K tokens价格（元）
-    output: number  // 每1K tokens价格（元）
+    input: number
+    output: number
   }
 
   /**
@@ -43,7 +94,7 @@ export interface AIProvider {
   chat(messages: OpenAI.Chat.ChatCompletionMessageParam[], options?: ChatOptions): Promise<string>
 
   /**
-   * 原生工具调用（OpenAI-compatible Chat Completions tools/tool_calls）
+   * 原生工具调用
    */
   chatWithTools(
     messages: OpenAI.Chat.ChatCompletionMessageParam[],
@@ -107,7 +158,70 @@ export interface NativeToolCallResult {
   finishReason?: string | null
 }
 
+export type ProviderKind = 'openai-responses' | 'openai-compatible' | 'anthropic' | 'google'
 type MutableToolCall = AIStreamToolCall
+
+export const NATIVE_TOOL_CALLING_UNSUPPORTED_MESSAGE = '当前模型/服务商不支持原生工具调用，请切换支持 tools 的 OpenAI-compatible 模型'
+
+function normalizeModelMessage(message: OpenAI.Chat.ChatCompletionMessageParam): ModelMessage {
+  const raw = message as any
+  const role = raw.role
+  const content = raw.content ?? ''
+
+  if (role === 'system') {
+    return { role: 'system', content: String(content) }
+  }
+  if (role === 'assistant') {
+    return { role: 'assistant', content: typeof content === 'string' ? content : '' }
+  }
+  if (role === 'tool') {
+    return {
+      role: 'tool',
+      content: [{
+        type: 'tool-result',
+        toolCallId: String(raw.tool_call_id || 'tool-call'),
+        toolName: String(raw.name || 'tool'),
+        output: { type: 'text', value: String(content) }
+      }]
+    } as ModelMessage
+  }
+
+  return { role: 'user', content: typeof content === 'string' ? content : String(content || '') }
+}
+
+function normalizeMessages(messages: OpenAI.Chat.ChatCompletionMessageParam[]): ModelMessage[] {
+  return messages.map(normalizeModelMessage)
+}
+
+function toAiToolSet(tools: NativeToolDefinition[]): ToolSet {
+  const result: ToolSet = {}
+  for (const item of tools || []) {
+    const name = item?.function?.name
+    if (!name) continue
+    result[name] = tool({
+      description: item.function.description,
+      inputSchema: jsonSchema((item.function.parameters || { type: 'object', properties: {} }) as any)
+    }) as any
+  }
+  return result
+}
+
+function toAiToolChoice(choice?: OpenAI.Chat.ChatCompletionToolChoiceOption): any {
+  if (!choice || typeof choice === 'string') return choice
+  const toolName = choice.function?.name
+  return toolName ? { type: 'tool', toolName } : 'auto'
+}
+
+function toOpenAIToolCall(call: any, fallbackIndex = 0): AIStreamToolCall {
+  return {
+    id: String(call?.toolCallId || call?.id || `tool-call-${fallbackIndex}`),
+    type: 'function',
+    function: {
+      name: String(call?.toolName || call?.name || ''),
+      arguments: JSON.stringify(call?.input ?? call?.args ?? {})
+    }
+  }
+}
 
 function getToolCallIndex(delta: unknown, fallback: number): number {
   const value = typeof delta === 'object' && delta && 'index' in delta
@@ -143,9 +257,56 @@ function collectToolCalls(toolCallByIndex: Map<number, MutableToolCall>): AIStre
     }))
 }
 
-export const NATIVE_TOOL_CALLING_UNSUPPORTED_MESSAGE = '当前模型/服务商不支持原生工具调用，请切换支持 tools 的 OpenAI-compatible 模型'
+function parseSseLine(line: string): any | null {
+  const trimmed = line.trim()
+  if (!trimmed.startsWith('data:')) return null
+  const data = trimmed.slice(5).trim()
+  if (!data || data === '[DONE]') return null
+  try {
+    return JSON.parse(data)
+  } catch {
+    return null
+  }
+}
 
-export function isNativeToolCallingUnsupportedError(error: unknown): boolean {
+async function* iterateSseJson(response: Response): AsyncGenerator<any> {
+  if (!response.body) return
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const parts = buffer.split(/\r?\n\r?\n/)
+    buffer = parts.pop() || ''
+    for (const part of parts) {
+      for (const line of part.split(/\r?\n/)) {
+        const parsed = parseSseLine(line)
+        if (parsed) yield parsed
+      }
+    }
+  }
+
+  if (buffer) {
+    for (const line of buffer.split(/\r?\n/)) {
+      const parsed = parseSseLine(line)
+      if (parsed) yield parsed
+    }
+  }
+}
+
+function normalizeBaseURL(baseURL: string): string {
+  return String(baseURL || '').trim().replace(/\/+$/, '')
+}
+
+function joinEndpoint(baseURL: string, path: string): string {
+  const normalized = normalizeBaseURL(baseURL)
+  return `${normalized}${path.startsWith('/') ? path : `/${path}`}`
+}
+
+function isNativeToolCallingUnsupportedError(error: unknown): boolean {
   const status = typeof error === 'object' && error && 'status' in error
     ? Number((error as { status?: unknown }).status)
     : undefined
@@ -169,6 +330,8 @@ export function isNativeToolCallingUnsupportedError(error: unknown): boolean {
   )
 }
 
+export { isNativeToolCallingUnsupportedError }
+
 export function normalizeNativeToolCallingError(error: unknown): Error {
   if (isNativeToolCallingUnsupportedError(error)) {
     return new Error(NATIVE_TOOL_CALLING_UNSUPPORTED_MESSAGE)
@@ -186,49 +349,112 @@ export abstract class BaseAIProvider implements AIProvider {
   abstract models: string[]
   abstract pricing: { input: number; output: number }
 
-  protected client: OpenAI
   protected apiKey: string
   protected baseURL: string
+  protected providerKind: ProviderKind
 
-  constructor(apiKey: string, baseURL: string) {
+  constructor(apiKey: string, baseURL: string, providerKind: ProviderKind = 'openai-compatible') {
     this.apiKey = apiKey
     this.baseURL = baseURL
-    
-    // 初始化时不创建 client，延迟到实际请求时
-    // 这样可以动态获取代理配置
-    this.client = null as any
+    this.providerKind = providerKind
   }
 
   protected getDefaultHeaders(): Record<string, string> | undefined {
     return undefined
   }
 
-  /**
-   * 获取或创建 OpenAI 客户端（支持代理）
-   */
-  protected async getClient(): Promise<OpenAI> {
-    const proxyAgent = await proxyService.createProxyAgent(this.baseURL)
+  protected getModelProvider(model: string): LanguageModel {
+    const headers = this.getDefaultHeaders()
+    if (this.providerKind === 'anthropic') {
+      return createAnthropic({
+        apiKey: this.apiKey,
+        baseURL: this.baseURL,
+        name: this.name,
+        headers
+      })(model as any)
+    }
+    if (this.providerKind === 'google') {
+      return createGoogleGenerativeAI({
+        apiKey: this.apiKey,
+        baseURL: this.baseURL,
+        name: this.name,
+        headers
+      })(model as any)
+    }
+    if (this.providerKind === 'openai-responses') {
+      return createOpenAI({
+        apiKey: this.apiKey,
+        baseURL: this.baseURL,
+        name: this.name,
+        headers
+      }).responses(model as any)
+    }
 
-    const clientConfig: any = {
+    return createOpenAICompatible({
+      name: this.name,
       apiKey: this.apiKey,
       baseURL: this.baseURL,
-      timeout: 300000,
+      headers,
+      includeUsage: true
+    }).chatModel(model)
+  }
+
+  /**
+   * 兼容旧 provider 覆写逻辑的轻量 OpenAI-compatible client。
+   * 新路径优先使用 AI SDK；少数有厂商特殊流式字段的 provider 暂时通过这里保留行为。
+   */
+  protected async getClient(): Promise<any> {
+    const defaultHeaders = this.getDefaultHeaders() || {}
+    const authHeaders = this.providerKind === 'anthropic'
+      ? { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01' }
+      : this.providerKind === 'google'
+        ? { 'x-goog-api-key': this.apiKey }
+        : { Authorization: `Bearer ${this.apiKey}` }
+    const headers = {
+      'content-type': 'application/json',
+      ...authHeaders,
+      ...defaultHeaders
     }
 
-    const defaultHeaders = this.getDefaultHeaders()
-    if (defaultHeaders && Object.keys(defaultHeaders).length > 0) {
-      clientConfig.defaultHeaders = defaultHeaders
+    const requestJson = async (path: string, init?: RequestInit) => {
+      const response = await fetch(joinEndpoint(this.baseURL, path), {
+        ...init,
+        headers: {
+          ...headers,
+          ...(init?.headers as Record<string, string> | undefined)
+        }
+      })
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        const error: any = new Error(text || `${response.status} ${response.statusText}`)
+        error.status = response.status
+        throw error
+      }
+      return response
     }
 
-    // 如果有代理，注入 httpAgent
-    if (proxyAgent) {
-      clientConfig.httpAgent = proxyAgent
-      console.log(`[${this.name}] 使用代理连接`)
-    } else {
-      console.log(`[${this.name}] 使用直连`)
+    return {
+      models: {
+        list: async () => {
+          const response = await requestJson('/models', { method: 'GET' })
+          return response.json()
+        }
+      },
+      chat: {
+        completions: {
+          create: async (params: any) => {
+            const response = await requestJson('/chat/completions', {
+              method: 'POST',
+              body: JSON.stringify(params)
+            })
+            if (params?.stream) {
+              return iterateSseJson(response)
+            }
+            return response.json()
+          }
+        }
+      }
     }
-
-    return new OpenAI(clientConfig)
   }
 
   protected resolveModelId(displayName: string): string {
@@ -258,9 +484,15 @@ export abstract class BaseAIProvider implements AIProvider {
       timeoutPromise
     ])
 
-    const ids = Array.isArray(response?.data)
+    const rawItems = Array.isArray(response?.data)
       ? response.data
-        .map((item: any) => String(item?.id || '').trim())
+      : Array.isArray(response?.models)
+        ? response.models
+        : []
+
+    const ids = Array.isArray(rawItems)
+      ? rawItems
+        .map((item: any) => String(item?.id || item?.name || '').replace(/^models\//, '').trim())
         .filter(Boolean)
       : []
 
@@ -268,48 +500,48 @@ export abstract class BaseAIProvider implements AIProvider {
   }
 
   async chat(messages: OpenAI.Chat.ChatCompletionMessageParam[], options?: ChatOptions): Promise<string> {
-    const client = await this.getClient()
     const model = this.resolveModelId(options?.model || this.models[0])
-    
-    const response = await client.chat.completions.create({
-      model,
-      messages: messages,
-      temperature: options?.temperature || 0.7,
-      max_tokens: options?.maxTokens,
-      stream: false,
-      ...this.getChatRequestExtraParams(options)
+    const response = await generateText({
+      model: this.getModelProvider(model),
+      messages: normalizeMessages(messages),
+      allowSystemInMessages: true,
+      temperature: options?.temperature ?? 0.7,
+      maxOutputTokens: options?.maxTokens,
+      timeout: 300000,
+      maxRetries: 0
     })
 
-    return response.choices[0]?.message?.content || ''
+    return response.text || ''
   }
 
   async chatWithTools(
     messages: OpenAI.Chat.ChatCompletionMessageParam[],
     options: ChatWithToolsOptions
   ): Promise<NativeToolCallResult> {
-    const client = await this.getClient()
     const model = this.resolveModelId(options?.model || this.models[0])
 
-    const requestParams: any = {
-      model,
-      messages,
-      temperature: options?.temperature ?? 0.2,
-      max_tokens: options?.maxTokens,
-      stream: false,
-      tools: options.tools,
-      tool_choice: options.toolChoice ?? 'auto',
-      ...this.getToolRequestExtraParams(options)
-    }
-
-    if (typeof options.parallelToolCalls === 'boolean') {
-      requestParams.parallel_tool_calls = options.parallelToolCalls
-    }
-
     try {
-      const response = await client.chat.completions.create(requestParams)
+      const response = await generateText({
+        model: this.getModelProvider(model),
+        messages: normalizeMessages(messages),
+        allowSystemInMessages: true,
+        temperature: options?.temperature ?? 0.2,
+        maxOutputTokens: options?.maxTokens,
+        timeout: 300000,
+        maxRetries: 0,
+        tools: toAiToolSet(options.tools),
+        toolChoice: toAiToolChoice(options.toolChoice)
+      } as any)
+
+      const toolCalls = (response.toolCalls || []).map(toOpenAIToolCall)
       return {
-        message: response.choices[0]?.message || { role: 'assistant', content: '' },
-        finishReason: response.choices[0]?.finish_reason || null
+        message: {
+          role: 'assistant',
+          content: response.text || null,
+          reasoning_content: response.reasoningText || null,
+          ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
+        },
+        finishReason: response.finishReason || null
       }
     } catch (error) {
       throw normalizeNativeToolCallingError(error)
@@ -321,73 +553,64 @@ export abstract class BaseAIProvider implements AIProvider {
     options: ChatWithToolsOptions,
     onEvent: (event: AIStreamEvent) => void
   ): Promise<NativeToolCallResult> {
-    const client = await this.getClient()
     const model = this.resolveModelId(options?.model || this.models[0])
 
-    const requestParams: any = {
-      model,
-      messages,
-      temperature: options?.temperature ?? 0.2,
-      max_tokens: options?.maxTokens,
-      stream: true,
-      tools: options.tools,
-      tool_choice: options.toolChoice ?? 'auto',
-      ...this.getToolRequestExtraParams(options)
-    }
-
-    if (typeof options.parallelToolCalls === 'boolean') {
-      requestParams.parallel_tool_calls = options.parallelToolCalls
-    }
-
     try {
-      const stream = await client.chat.completions.create(requestParams) as any
-      let role: 'assistant' = 'assistant'
+      const result = streamText({
+        model: this.getModelProvider(model),
+        messages: normalizeMessages(messages),
+        allowSystemInMessages: true,
+        temperature: options?.temperature ?? 0.2,
+        maxOutputTokens: options?.maxTokens,
+        timeout: 300000,
+        maxRetries: 0,
+        tools: toAiToolSet(options.tools),
+        toolChoice: toAiToolChoice(options.toolChoice)
+      } as any)
+
       let content = ''
       let reasoningContent = ''
       let finishReason: string | null = null
-      const toolCallByIndex = new Map<number, MutableToolCall>()
+      const toolCalls: AIStreamToolCall[] = []
+      const toolInputById = new Map<string, string>()
+      const toolNameById = new Map<string, string>()
 
-      for await (const chunk of stream) {
-        const choice = chunk.choices?.[0]
-        if (!choice) continue
-
-        finishReason = choice.finish_reason || finishReason
-        const delta = choice.delta || {}
-        if (delta.role === 'assistant') role = 'assistant'
-
-        const reasoning = typeof delta.reasoning_content === 'string'
-          ? delta.reasoning_content
-          : ''
-        if (reasoning) {
-          reasoningContent += reasoning
-          onEvent({ type: 'reasoning_delta', text: reasoning })
-        }
-
-        if (typeof delta.content === 'string' && delta.content) {
-          content += delta.content
-          onEvent({ type: 'content_delta', text: delta.content })
-        }
-
-        const toolCalls = Array.isArray(delta.tool_calls) ? delta.tool_calls : []
-        for (const toolCallDelta of toolCalls) {
-          const index = getToolCallIndex(toolCallDelta, toolCallByIndex.size)
-          onEvent({ type: 'tool_call_delta', index, delta: toolCallDelta })
-          toolCallByIndex.set(index, appendToolCallDelta(toolCallByIndex.get(index), toolCallDelta, index))
+      for await (const part of result.fullStream) {
+        if (part.type === 'text-delta') {
+          content += part.text
+          onEvent({ type: 'content_delta', text: part.text })
+        } else if (part.type === 'reasoning-delta') {
+          reasoningContent += part.text
+          onEvent({ type: 'reasoning_delta', text: part.text })
+        } else if (part.type === 'tool-input-start') {
+          toolNameById.set(part.id, part.toolName)
+        } else if (part.type === 'tool-input-delta') {
+          const previous = toolInputById.get(part.id) || ''
+          toolInputById.set(part.id, previous + part.delta)
+          onEvent({ type: 'tool_call_delta', index: toolInputById.size - 1, delta: part })
+        } else if (part.type === 'tool-call') {
+          const toolCall = toOpenAIToolCall(part, toolCalls.length)
+          toolCalls.push(toolCall)
+          onEvent({ type: 'tool_call_done', toolCall })
+        } else if (part.type === 'finish-step' || part.type === 'finish') {
+          finishReason = part.finishReason || finishReason
+        } else if (part.type === 'error') {
+          throw part.error
         }
       }
 
-      const toolCalls = collectToolCalls(toolCallByIndex)
-      toolCalls.forEach((toolCall) => onEvent({ type: 'tool_call_done', toolCall }))
-
-      const message: any = {
-        role,
-        content: content || null
-      }
-      if (reasoningContent) {
-        message.reasoning_content = reasoningContent
-      }
-      if (toolCalls.length > 0) {
-        message.tool_calls = toolCalls
+      for (const [id, args] of toolInputById.entries()) {
+        if (toolCalls.some(item => item.id === id)) continue
+        const toolCall: AIStreamToolCall = {
+          id,
+          type: 'function',
+          function: {
+            name: toolNameById.get(id) || '',
+            arguments: args
+          }
+        }
+        toolCalls.push(toolCall)
+        onEvent({ type: 'tool_call_done', toolCall })
       }
 
       onEvent({
@@ -398,7 +621,15 @@ export abstract class BaseAIProvider implements AIProvider {
         finishReason
       })
 
-      return { message, finishReason }
+      return {
+        message: {
+          role: 'assistant',
+          content: content || null,
+          reasoning_content: reasoningContent || null,
+          ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
+        },
+        finishReason
+      }
     } catch (error) {
       throw normalizeNativeToolCallingError(error)
     }
@@ -409,48 +640,32 @@ export abstract class BaseAIProvider implements AIProvider {
     options: ChatOptions,
     onEvent: (event: AIStreamEvent) => void
   ): Promise<void> {
-    const client = await this.getClient()
-    const enableThinking = options?.enableThinking !== false  // 默认启用
     const model = this.resolveModelId(options?.model || this.models[0])
-
-    const requestParams: any = {
-      model,
-      messages: messages,
-      temperature: options?.temperature || 0.7,
-      max_tokens: options?.maxTokens,
-      stream: true,
-      ...this.getChatRequestExtraParams(options)
-    }
-
-    if (enableThinking) {
-      requestParams.reasoning_effort = 'medium'
-      requestParams.thinking = { type: 'enabled' }
-    } else {
-      requestParams.reasoning_effort = 'none'
-      requestParams.thinking = { type: 'disabled' }
-    }
-
-    const stream = await client.chat.completions.create(requestParams) as any
+    const result = streamText({
+      model: this.getModelProvider(model),
+      messages: normalizeMessages(messages),
+      allowSystemInMessages: true,
+      temperature: options?.temperature ?? 0.7,
+      maxOutputTokens: options?.maxTokens,
+      timeout: 300000,
+      maxRetries: 0
+    })
 
     let contentText = ''
     let reasoningText = ''
     let finishReason: string | null = null
 
-    for await (const chunk of stream) {
-      const choice = chunk.choices[0]
-      finishReason = choice?.finish_reason || finishReason
-      const delta = choice?.delta
-      const content = delta?.content || ''
-      const reasoning = delta?.reasoning_content || ''
-
-      if (reasoning) {
-        reasoningText += reasoning
-        onEvent({ type: 'reasoning_delta', text: reasoning })
-      }
-
-      if (content) {
-        contentText += content
-        onEvent({ type: 'content_delta', text: content })
+    for await (const part of result.fullStream) {
+      if (part.type === 'text-delta') {
+        contentText += part.text
+        onEvent({ type: 'content_delta', text: part.text })
+      } else if (part.type === 'reasoning-delta') {
+        reasoningText += part.text
+        onEvent({ type: 'reasoning_delta', text: part.text })
+      } else if (part.type === 'finish-step' || part.type === 'finish') {
+        finishReason = part.finishReason || finishReason
+      } else if (part.type === 'error') {
+        throw part.error
       }
     }
 
@@ -464,39 +679,26 @@ export abstract class BaseAIProvider implements AIProvider {
 
   async testConnection(): Promise<{ success: boolean; error?: string; needsProxy?: boolean }> {
     try {
-      const client = await this.getClient()
-      
-      // 创建超时 Promise
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('CONNECTION_TIMEOUT')), 15000) // 15秒超时
-      })
-      
-      // 竞速：API 请求 vs 超时
-      await Promise.race([
-        client.models.list(),
-        timeoutPromise
-      ])
-      
+      await this.listModels()
       return { success: true }
     } catch (error: any) {
       const errorMessage = error?.message || String(error)
       console.error(`[${this.name}] 连接测试失败:`, errorMessage)
-      
-      // 判断是否需要代理
-      const needsProxy = 
+
+      const needsProxy =
         errorMessage.includes('ECONNREFUSED') ||
         errorMessage.includes('ETIMEDOUT') ||
         errorMessage.includes('ENOTFOUND') ||
         errorMessage.includes('CONNECTION_TIMEOUT') ||
+        errorMessage.includes('MODEL_LIST_TIMEOUT') ||
         errorMessage.includes('getaddrinfo') ||
         error?.code === 'ECONNREFUSED' ||
         error?.code === 'ETIMEDOUT' ||
         error?.code === 'ENOTFOUND'
-      
-      // 构建错误提示
+
       let errorMsg = '连接失败'
-      
-      if (errorMessage.includes('CONNECTION_TIMEOUT')) {
+
+      if (errorMessage.includes('MODEL_LIST_TIMEOUT') || errorMessage.includes('CONNECTION_TIMEOUT')) {
         errorMsg = '连接超时，请开启代理或检查网络'
       } else if (errorMessage.includes('ECONNREFUSED')) {
         errorMsg = '连接被拒绝，请开启代理或检查网络'
@@ -517,11 +719,11 @@ export abstract class BaseAIProvider implements AIProvider {
       } else {
         errorMsg = `连接失败: ${errorMessage}`
       }
-      
-      return { 
-        success: false, 
+
+      return {
+        success: false,
         error: errorMsg,
-        needsProxy 
+        needsProxy
       }
     }
   }

@@ -33,11 +33,10 @@ function normalizeProviderBaseURL(providerId: string, baseURL: string) {
   return baseURL.trim().replace(/\/+$/, '')
 }
 
-function canFetchProviderModelList(providerId: string, apiKey: string, baseURL: string) {
+function canFetchProviderModelList(providerId: string, baseURL: string, providerInfo?: AIProviderInfo) {
   if (!providerId) return false
-  if (providerId === 'ollama') return true
-  if (providerId === 'custom') return Boolean(apiKey.trim() && baseURL.trim())
-  return Boolean(apiKey.trim())
+  if (providerInfo?.allowCustomBaseURL && !baseURL.trim()) return false
+  return true
 }
 
 function AISummarySettings({ showMessage }: AISummarySettingsProps) {
@@ -79,10 +78,8 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
   useEffect(() => {
     if (!provider) return
     const config = providerConfigs[provider]
-    if (provider === 'ollama') {
-      setBaseURL(config?.baseURL || 'http://localhost:11434/v1')
-    } else if (provider === 'custom') {
-      setBaseURL(config?.baseURL || '')
+    if (currentProvider?.allowCustomBaseURL) {
+      setBaseURL(config?.baseURL || (provider === 'ollama' ? 'http://localhost:11434/v1' : ''))
     } else {
       setBaseURL('')
     }
@@ -125,7 +122,7 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
     const payload = {
       apiKey: nextApiKey,
       model: normalizeProviderModel(nextProvider, nextModel),
-      baseURL: nextProvider === 'ollama' || nextProvider === 'custom'
+      baseURL: providers.find(item => item.id === nextProvider)?.allowCustomBaseURL
         ? normalizeProviderBaseURL(nextProvider, nextBaseURL)
         : undefined
     }
@@ -141,7 +138,7 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
   }
 
   const handleRefreshModels = async () => {
-    if (!canFetchProviderModelList(provider, apiKey, baseURL)) {
+    if (!canFetchProviderModelList(provider, baseURL, currentProvider)) {
       showMessage('请先填写当前服务商所需的 API 配置', false)
       return
     }
@@ -174,7 +171,7 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
       showMessage('请先填写 API 密钥', false)
       return
     }
-    if (provider === 'custom' && !baseURL.trim()) {
+    if (currentProvider?.allowCustomBaseURL && !baseURL.trim()) {
       showMessage('自定义服务需要填写服务地址', false)
       return
     }
@@ -298,7 +295,7 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
           </div>
         </div>
 
-        {(provider === 'ollama' || provider === 'custom') && (
+        {currentProvider?.allowCustomBaseURL && (
           <div className="form-group">
             <label>服务地址</label>
             <div className="input-with-button">
@@ -351,7 +348,7 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
               type="button"
               className="select-refresh-btn"
               onClick={handleRefreshModels}
-              disabled={isLoadingModels || !canFetchProviderModelList(provider, apiKey, baseURL)}
+              disabled={isLoadingModels || !canFetchProviderModelList(provider, baseURL, currentProvider)}
               title="刷新模型列表"
             >
               <RefreshCw size={16} className={isLoadingModels ? 'spin' : ''} />

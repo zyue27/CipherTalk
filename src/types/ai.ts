@@ -14,6 +14,9 @@ export interface AIProviderInfo {
   }
   website?: string
   logo?: string
+  protocol?: 'openai-responses' | 'openai-compatible' | 'anthropic' | 'google'
+  allowCustomBaseURL?: boolean
+  optionalApiKey?: boolean
 }
 
 /**
