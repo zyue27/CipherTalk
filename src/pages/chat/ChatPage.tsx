@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react'
+import type { Virtualizer } from '@tanstack/react-virtual'
 import { MessageSquare } from 'lucide-react'
 import { useChatStore, MAX_ACTIVE_MESSAGES } from '../../stores/chatStore'
 import { useUpdateStatusStore } from '../../stores/updateStatusStore'
@@ -83,6 +84,7 @@ function ChatPage(_props: ChatPageProps) {
   const messagesRef = useRef<Message[]>([])
   const isLoadingMoreRef = useRef(false)
   const scrollToBottomAfterRenderRef = useRef(false)
+  const virtualizerRef = useRef<Virtualizer<HTMLDivElement, Element> | null>(null)
   const pendingPrependAnchorRef = useRef<ScrollAnchor | null>(null)
   const currentSessionIdRef = useRef<string | null>(null)
   const messageLoadSeqRef = useRef(0)
@@ -846,8 +848,14 @@ function ChatPage(_props: ChatPageProps) {
 
   // 滚动到底部
   const scrollToBottom = useCallback((smooth: boolean | React.MouseEvent = true) => {
+    const isSmooth = typeof smooth === 'boolean' ? smooth : true;
+    const virtualizer = virtualizerRef.current
+    const count = messagesRef.current.length
+    if (virtualizer && count > 0) {
+      virtualizer.scrollToIndex(count - 1, { align: 'end', behavior: isSmooth ? 'smooth' : 'auto' })
+      return
+    }
     if (messageListRef.current) {
-      const isSmooth = typeof smooth === 'boolean' ? smooth : true;
       if (isSmooth) {
         messageListRef.current.scrollTo({ top: messageListRef.current.scrollHeight, behavior: 'smooth' })
       } else {
@@ -1587,6 +1595,7 @@ function ChatPage(_props: ChatPageProps) {
                 setContextMenu={setContextMenu}
                 showScrollToBottom={showScrollToBottom}
                 scrollToBottom={scrollToBottom}
+                virtualizerRef={virtualizerRef}
               />
             </div>
 

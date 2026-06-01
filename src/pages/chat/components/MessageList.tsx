@@ -1,7 +1,7 @@
 import { Check, ChevronDown, Loader2 } from 'lucide-react'
 import { useCallback, useRef } from 'react'
 import type { RefObject } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual'
 import ChatBackground from '../../../components/ChatBackground'
 import type { ChatSession, Message } from '../../../types/models'
 import type { ContextMenuState, QuoteStyle } from '../types'
@@ -27,6 +27,7 @@ interface MessageListProps {
   setContextMenu: React.Dispatch<React.SetStateAction<ContextMenuState | null>>
   showScrollToBottom: boolean
   scrollToBottom: (smooth?: boolean | React.MouseEvent) => void
+  virtualizerRef?: RefObject<Virtualizer<HTMLDivElement, Element> | null>
 }
 
 export function MessageList({
@@ -45,7 +46,8 @@ export function MessageList({
   onToggleSelect,
   setContextMenu,
   showScrollToBottom,
-  scrollToBottom
+  scrollToBottom,
+  virtualizerRef
 }: MessageListProps) {
   // Keep a stable ref to messages so estimateSize/getItemKey callbacks
   // don't recreate on every render
@@ -54,10 +56,11 @@ export function MessageList({
 
   const estimateSize = useCallback((index: number) => {
     const msg = messagesRef.current[index]
-    if (!msg) return 64
+    // 估算值含 16px 间距（flex gap 对虚拟列表失效，改用 padding-bottom 补偿）
+    if (!msg) return 80
     // System messages (localType 10000) are compact
-    if (msg.localType === 10000) return 36
-    return 64
+    if (msg.localType === 10000) return 52
+    return 80
   }, [])
 
   const virtualizer = useVirtualizer({
@@ -70,6 +73,11 @@ export function MessageList({
       return msg ? getMessageDomKey(msg) : `msg-${index}`
     },
   })
+
+  // 暴露 virtualizer 给父组件，供 scrollToBottom 调用 scrollToIndex
+  if (virtualizerRef) {
+    virtualizerRef.current = virtualizer
+  }
 
   if (isLoadingMessages && messages.length === 0) {
     return (
@@ -122,6 +130,7 @@ export function MessageList({
       )}
 
       <div
+        className="message-virtual-list"
         style={{
           height: virtualizer.getTotalSize(),
           position: 'relative',
@@ -152,6 +161,7 @@ export function MessageList({
                 top: 0,
                 left: 0,
                 width: '100%',
+                paddingBottom: 16,
                 transform: `translateY(${virtualItem.start}px)`,
               }}
               onClick={isSelectable ? () => onToggleSelect(msg.localId) : undefined}

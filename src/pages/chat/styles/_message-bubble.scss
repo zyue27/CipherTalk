@@ -19,6 +19,11 @@
   }
 }
 
+// 虚拟滚动下禁用入场动画：其 transform 会与虚拟定位的 translateY 冲突
+.message-virtual-list .message-wrapper {
+  animation: none;
+}
+
 .load-more-trigger {
   text-align: center;
   padding: 12px;
