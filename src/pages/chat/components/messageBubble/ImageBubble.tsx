@@ -33,7 +33,9 @@ function ImageBubble({ message, session, hasImageKey, onContextMenu }: ImageBubb
 
   const imageUpdateCheckedRef = useRef<string | null>(null)
   const imageClickTimerRef = useRef<number | null>(null)
+  const imageUpgradeTimerRef = useRef<number | null>(null)
   const imageRecoveringRef = useRef(false)
+  const imageRecoverRetryCountRef = useRef(0)
   const lastRecoverTriedPathRef = useRef<string | null>(null)
   const imageContainerRef = useRef<HTMLDivElement>(null)
 
@@ -49,7 +51,11 @@ function ImageBubble({ message, session, hasImageKey, onContextMenu }: ImageBubb
       if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return 'image/png'
       if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) return 'image/jpeg'
       if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return 'image/gif'
-      if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+      if (
+        bytes.length >= 12 &&
+        bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+        bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+      ) {
         return 'image/webp'
       }
     } catch { }
@@ -226,6 +232,7 @@ function ImageBubble({ message, session, hasImageKey, onContextMenu }: ImageBubb
 
     return () => {
       cancelled = true
+      imageUpdateCheckedRef.current = null
     }
   }, [
     isVisible,
@@ -247,7 +254,11 @@ function ImageBubble({ message, session, hasImageKey, onContextMenu }: ImageBubb
     if (!imageLocalPath.toLowerCase().includes('_thumb')) return
     if (!imageHasUpdate) return
 
-    const timer = window.setInterval(() => {
+    if (imageUpgradeTimerRef.current) {
+      window.clearInterval(imageUpgradeTimerRef.current)
+    }
+
+    imageUpgradeTimerRef.current = window.setInterval(() => {
       if (!imageLoading) {
         void requestImageDecrypt(true)
       }
@@ -258,7 +269,10 @@ function ImageBubble({ message, session, hasImageKey, onContextMenu }: ImageBubb
     }
 
     return () => {
-      window.clearInterval(timer)
+      if (imageUpgradeTimerRef.current) {
+        window.clearInterval(imageUpgradeTimerRef.current)
+        imageUpgradeTimerRef.current = null
+      }
     }
   }, [isVisible, imageLocalPath, imageHasUpdate, imageLoading, requestImageDecrypt])
 
@@ -272,10 +286,12 @@ function ImageBubble({ message, session, hasImageKey, onContextMenu }: ImageBubb
   const recoverBrokenImagePath = useCallback(async () => {
     if (!session.username) return
     if (imageRecoveringRef.current) return
+    if (imageRecoverRetryCountRef.current >= 3) return
 
     const failedPath = imageLocalPath || '__empty__'
     if (lastRecoverTriedPathRef.current === failedPath && !imageHasUpdate) return
     lastRecoverTriedPathRef.current = failedPath
+    imageRecoverRetryCountRef.current += 1
     imageRecoveringRef.current = true
     setImageLoading(true)
 
@@ -326,6 +342,7 @@ function ImageBubble({ message, session, hasImageKey, onContextMenu }: ImageBubb
     } finally {
       setImageLoading(false)
       imageRecoveringRef.current = false
+      imageRecoverRetryCountRef.current = 0
     }
   }, [
     message.imageMd5,
