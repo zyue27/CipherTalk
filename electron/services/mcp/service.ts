@@ -4,23 +4,18 @@ import { getAppPath, getExePath, isElectronPackaged } from '../runtimePaths'
 import { McpToolError } from './result'
 import { getMcpProxyConfig } from './runtime'
 import type {
-  McpActivityDistributionPayload,
-  McpContactRankingsPayload,
   McpContactsPayload,
   McpExportChatPayload,
-  McpGlobalStatisticsPayload,
   McpHealthPayload,
   McpMomentsTimelinePayload,
   McpMessagesPayload,
   McpVoiceTranscriptionPayload,
   McpAudioFileTranscriptionPayload,
-  McpKeywordStatisticsPayload,
   McpMemorySearchPayload,
   McpResolveSessionPayload,
   McpStreamEvent,
   McpSearchMessagesPayload,
   McpSessionContextPayload,
-  McpSessionStatisticsPayload,
   McpSessionsPayload,
   McpStatusPayload,
   McpToolName
@@ -293,18 +288,6 @@ export class McpReadService {
     return this.callProxy<McpContactsPayload>('list_contacts', rawArgs)
   }
 
-  async getGlobalStatistics(rawArgs: Record<string, unknown>): Promise<McpGlobalStatisticsPayload> {
-    return this.callProxy<McpGlobalStatisticsPayload>('get_global_statistics', rawArgs)
-  }
-
-  async getContactRankings(rawArgs: Record<string, unknown>): Promise<McpContactRankingsPayload> {
-    return this.callProxy<McpContactRankingsPayload>('get_contact_rankings', rawArgs)
-  }
-
-  async getActivityDistribution(rawArgs: Record<string, unknown>): Promise<McpActivityDistributionPayload> {
-    return this.callProxy<McpActivityDistributionPayload>('get_activity_distribution', rawArgs)
-  }
-
   async getMessages(rawArgs: Record<string, unknown>, defaultIncludeMediaPaths: boolean): Promise<McpMessagesPayload> {
     return this.callProxy<McpMessagesPayload>('get_messages', {
       ...rawArgs,
@@ -339,14 +322,6 @@ export class McpReadService {
       ...rawArgs,
       includeMediaPaths: rawArgs.includeMediaPaths ?? defaultIncludeMediaPaths
     })
-  }
-
-  async getSessionStatistics(rawArgs: Record<string, unknown>): Promise<McpSessionStatisticsPayload> {
-    return this.callProxy<McpSessionStatisticsPayload>('get_session_statistics', rawArgs)
-  }
-
-  async getKeywordStatistics(rawArgs: Record<string, unknown>): Promise<McpKeywordStatisticsPayload> {
-    return this.callProxy<McpKeywordStatisticsPayload>('get_keyword_statistics', rawArgs)
   }
 
   async streamSearchMessages(

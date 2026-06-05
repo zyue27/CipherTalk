@@ -123,16 +123,6 @@ export function registerWindowHandlers(ctx: MainProcessContext): void {
     return true
   })
 
-  ipcMain.handle('window:openGroupAnalyticsWindow', async () => {
-    ctx.getWindowManager().openGroupAnalyticsWindow()
-    return true
-  })
-
-  ipcMain.handle('window:openAnnualReportWindow', async (_, year: number) => {
-    ctx.getWindowManager().openAnnualReportWindow(year)
-    return true
-  })
-
   ipcMain.handle('window:openAgreementWindow', async () => {
     ctx.getWindowManager().openAgreementWindow()
     return true

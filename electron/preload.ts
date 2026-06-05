@@ -165,8 +165,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('moments:filterUser', (_, username) => callback(username))
       return () => ipcRenderer.removeAllListeners('moments:filterUser')
     },
-    openGroupAnalyticsWindow: () => ipcRenderer.invoke('window:openGroupAnalyticsWindow'),
-    openAnnualReportWindow: (year: number) => ipcRenderer.invoke('window:openAnnualReportWindow', year),
     openAgreementWindow: () => ipcRenderer.invoke('window:openAgreementWindow'),
     openPurchaseWindow: () => ipcRenderer.invoke('window:openPurchaseWindow'),
     openWelcomeWindow: (mode?: 'default' | 'add-account') => ipcRenderer.invoke('window:openWelcomeWindow', mode),
@@ -411,30 +409,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('sns:writeExportFile', filePath, content),
     saveMediaToDir: (params: { url: string; key?: string | number; outputDir: string; index: number; md5?: string; isAvatar?: boolean; username?: string; isEmoji?: boolean; encryptUrl?: string; aesKey?: string }) =>
       ipcRenderer.invoke('sns:saveMediaToDir', params)
-  },
-
-  // 数据分析
-  analytics: {
-    getOverallStatistics: () => ipcRenderer.invoke('analytics:getOverallStatistics'),
-    getContactRankings: (limit?: number) => ipcRenderer.invoke('analytics:getContactRankings', limit),
-    getTimeDistribution: () => ipcRenderer.invoke('analytics:getTimeDistribution')
-  },
-
-  // 群聊分析
-  groupAnalytics: {
-    getGroupChats: () => ipcRenderer.invoke('groupAnalytics:getGroupChats'),
-    getGroupMembers: (chatroomId: string) => ipcRenderer.invoke('groupAnalytics:getGroupMembers', chatroomId),
-    getGroupMessageRanking: (chatroomId: string, limit?: number, startTime?: number, endTime?: number) => ipcRenderer.invoke('groupAnalytics:getGroupMessageRanking', chatroomId, limit, startTime, endTime),
-    getGroupActiveHours: (chatroomId: string, startTime?: number, endTime?: number) => ipcRenderer.invoke('groupAnalytics:getGroupActiveHours', chatroomId, startTime, endTime),
-    getGroupMediaStats: (chatroomId: string, startTime?: number, endTime?: number) => ipcRenderer.invoke('groupAnalytics:getGroupMediaStats', chatroomId, startTime, endTime),
-    getGroupEvents: (chatroomId: string, startTime?: number, endTime?: number) => ipcRenderer.invoke('groupAnalytics:getGroupEvents', chatroomId, startTime, endTime),
-    getGroupMessageBreakdown: (chatroomId: string, startTime?: number, endTime?: number) => ipcRenderer.invoke('groupAnalytics:getGroupMessageBreakdown', chatroomId, startTime, endTime)
-  },
-
-  // 年度报告
-  annualReport: {
-    getAvailableYears: () => ipcRenderer.invoke('annualReport:getAvailableYears'),
-    generateReport: (year: number) => ipcRenderer.invoke('annualReport:generateReport', year)
   },
 
   // 导出

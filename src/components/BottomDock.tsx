@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  Home, MessageSquare, BarChart3, Users, FileText, Database, Settings,
+  Home, MessageSquare, Database, Settings,
   Download, Aperture, Network, FileAudio, Boxes,
   type LucideIcon
 } from 'lucide-react'
@@ -98,11 +98,6 @@ function BottomDock() {
     catch (e) { console.error('打开聊天窗口失败:', e) }
   }
 
-  const openGroupAnalyticsWindow = async () => {
-    try { await window.electronAPI.window.openGroupAnalyticsWindow() }
-    catch (e) { console.error('打开群聊分析窗口失败:', e) }
-  }
-
   const openMomentsWindow = async () => {
     try { await window.electronAPI.window.openMomentsWindow() }
     catch (e) { console.error('打开朋友圈窗口失败:', e) }
@@ -112,9 +107,6 @@ function BottomDock() {
     { id: 'home', name: '首页', icon: makeIcon(Home, 'linear-gradient(135deg, #4A90E2 0%, #2E6BC9 100%)') },
     { id: 'chat', name: '聊天查看', icon: makeIcon(MessageSquare, 'linear-gradient(135deg, #2ECC71 0%, #27AE60 100%)') },
     { id: 'moments', name: '朋友圈', icon: makeIcon(Aperture, 'linear-gradient(135deg, #FF7AA2 0%, #E84B7E 100%)') },
-    { id: 'analytics', name: '私聊分析', icon: makeIcon(BarChart3, 'linear-gradient(135deg, #9B59B6 0%, #7A3FA0 100%)') },
-    { id: 'group-analytics', name: '群聊分析', icon: makeIcon(Users, 'linear-gradient(135deg, #F39C12 0%, #D67E0E 100%)') },
-    { id: 'annual-report', name: '年度报告', icon: makeIcon(FileText, 'linear-gradient(135deg, #E74C3C 0%, #C0392B 100%)') },
     { id: 'transcription', name: '转文字助手', icon: makeIcon(FileAudio, 'linear-gradient(135deg, #5B6CFF 0%, #3F50E0 100%)') },
     { id: 'export', name: '导出数据', icon: makeIcon(Download, 'linear-gradient(135deg, #1ABC9C 0%, #16A085 100%)') },
     { id: 'data-management', name: '数据管理', icon: makeIcon(Database, 'linear-gradient(135deg, #607D8B 0%, #455A64 100%)') },
@@ -128,9 +120,6 @@ function BottomDock() {
       case 'home': navigate('/home'); break
       case 'chat': void openChatWindow(); break
       case 'moments': void openMomentsWindow(); break
-      case 'analytics': navigate('/analytics'); break
-      case 'group-analytics': void openGroupAnalyticsWindow(); break
-      case 'annual-report': navigate('/annual-report'); break
       case 'transcription': navigate('/transcription-assistant'); break
       case 'export': navigate('/export'); break
       case 'data-management': navigate('/data-management'); break

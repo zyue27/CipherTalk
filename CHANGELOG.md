@@ -78,7 +78,7 @@
 ## [5.0.3] - 2026-05-06
 
 ### 修复
-- 修复 MCP 工具错误返回仍携带 `structuredContent`，导致 `get_messages`、`get_session_context`、`get_session_statistics`、`search_messages`、`get_keyword_statistics` 等带 `outputSchema` 的工具在宿主端被误判为结构化输出缺字段的问题。
+- 修复 MCP 工具错误返回仍携带 `structuredContent`，导致 `get_messages`、`get_session_context`、`search_messages` 等带 `outputSchema` 的工具在宿主端被误判为结构化输出缺字段的问题。
 
 ## [4.2.3] - 2026-04-27
 

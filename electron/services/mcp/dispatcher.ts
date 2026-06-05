@@ -57,18 +57,6 @@ export async function executeMcpTool<T extends McpToolName>(
         payload
       } as McpToolResult<T>
     }
-    case 'get_global_statistics': {
-      const payload = await readService.getGlobalStatistics(args as any)
-      return { summary: 'Loaded global statistics.', payload } as McpToolResult<T>
-    }
-    case 'get_contact_rankings': {
-      const payload = await readService.getContactRankings(args as any)
-      return { summary: `Loaded ${payload.items.length} contact rankings.`, payload } as McpToolResult<T>
-    }
-    case 'get_activity_distribution': {
-      const payload = await readService.getActivityDistribution(args as any)
-      return { summary: 'Loaded activity distribution.', payload } as McpToolResult<T>
-    }
     case 'list_sessions': {
       const payload = await readService.listSessions(args as any, reporter)
       return { summary: buildToolResultText('list_sessions', payload), payload } as McpToolResult<T>
@@ -104,14 +92,6 @@ export async function executeMcpTool<T extends McpToolName>(
       const defaults = getMcpConfigSnapshot()
       const payload = await readService.getSessionContext(args as any, defaults.mcpExposeMediaPaths, reporter)
       return { summary: buildToolResultText('get_session_context', payload), payload } as McpToolResult<T>
-    }
-    case 'get_session_statistics': {
-      const payload = await readService.getSessionStatistics(args as any, reporter)
-      return { summary: buildToolResultText('get_session_statistics', payload), payload } as McpToolResult<T>
-    }
-    case 'get_keyword_statistics': {
-      const payload = await readService.getKeywordStatistics(args as any, reporter)
-      return { summary: buildToolResultText('get_keyword_statistics', payload), payload } as McpToolResult<T>
     }
     default:
       throw new Error(`Unsupported MCP tool: ${toolName satisfies never}`)

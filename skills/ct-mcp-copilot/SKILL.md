@@ -1,7 +1,7 @@
 ---
 name: ct-mcp-copilot
 version: '1.2.0'
-description: Use CipherTalk MCP as an AI copilot for health/status checks, contact lookup, session resolution, message search, context retrieval, moments timeline exploration, chat export, and chat analytics. Trigger when the user provides partial, fuzzy, mistaken, or incomplete clues, or wants the AI to proactively dig for more local data instead of stopping after one failed query.
+description: Use CipherTalk MCP as an AI copilot for health/status checks, contact lookup, session resolution, message search, memory search, context retrieval, moments timeline exploration, and chat export. Trigger when the user provides partial, fuzzy, mistaken, or incomplete clues, or wants the AI to proactively dig for more local data instead of stopping after one failed query.
 ---
 
 # ct-mcp-copilot
@@ -31,12 +31,10 @@ This skill is expected to use all currently exposed CipherTalk MCP tools when re
 - `get_messages`
 - `list_contacts`
 - `search_messages`
+- `search_memory`
 - `get_session_context`
 - `transcribe_voice_message`
 - `transcribe_audio_file`
-- `get_global_statistics`
-- `get_contact_rankings`
-- `get_activity_distribution`
 
 ## Default routing
 
@@ -48,9 +46,8 @@ This skill is expected to use all currently exposed CipherTalk MCP tools when re
 6. If the user wants more clues or the session is still uncertain, use `search_messages` across multiple sessions or globally.
 7. If the user is asking about朋友圈/动态/点赞/评论/某段时间的分享内容 and the clue is a person name / remark / nickname, resolve the poster first with `list_contacts(q=<clue>)`, then pass `items[].contactId` into `get_moments_timeline.usernames[]`.
 8. Use `get_moments_timeline(keyword=<clue>)` first only when the clue is about the post body or topic, not the poster identity.
-9. Use analytics tools only after the target scope is reasonably stable.
-10. If the user asks what a voice message says, first use `get_messages`, `get_session_context`, or `search_messages` to locate the `kind="voice"` message, then call `transcribe_voice_message` with that message's `sessionId`, `cursor.localId`, and `cursor.createTime`.
-11. If the user provides a local mp3/wav/m4a/flac/ogg/opus/aac/amr path and asks for a transcript, call `transcribe_audio_file(filePath=...)`.
+9. If the user asks what a voice message says, first use `get_messages`, `get_session_context`, or `search_messages` to locate the `kind="voice"` message, then call `transcribe_voice_message` with that message's `sessionId`, `cursor.localId`, and `cursor.createTime`.
+10. If the user provides a local mp3/wav/m4a/flac/ogg/opus/aac/amr path and asks for a transcript, call `transcribe_audio_file(filePath=...)`.
 
 ## Voice transcription workflow
 
@@ -212,29 +209,6 @@ For moments evidence:
 - inspect `shareInfo`
 - use `rawXml` only as a fallback, not the default reading surface
 
-## Analytics workflow
-
-Use analytics tools deliberately:
-
-- `get_global_statistics`
-  - when the user asks for overall volume, first/last message, sent/received split, or total activity
-- `get_contact_rankings`
-  - when the user asks “聊得最多的是谁” or wants top contacts in a time window
-- `get_activity_distribution`
-  - when the user asks about活跃时段 / 星期分布 / 月度分布
-
-Recommended order:
-
-1. stabilize scope first
-2. choose one analytics tool that matches the question
-3. only combine multiple analytics tools when the user explicitly wants a broader report
-
-Battle report examples:
-
-- “战报：数据库已就绪，开始做总览统计。”
-- “战报：目标已明确，开始看联系人排行。”
-- “战报：聊天范围已锁定，接着看活跃时段分布。”
-
 ## Never do this
 
 - Do not conclude “没有数据” after a single failed query.
@@ -249,7 +223,6 @@ Battle report examples:
 - Do not start exporting before target session, time range, format, and media selections are all confirmed.
 - Do not quietly choose a time range or media mix on the user’s behalf.
 - Do not default to `includeRaw=true` for moments.
-- Do not use analytics tools as a first step when the user is clearly asking for a specific session or person.
 - Do not use export as the default workaround when content tools already returned usable rows.
 
 ## References
@@ -257,4 +230,3 @@ Battle report examples:
 - Read [references/queries.md](references/queries.md) when you need concrete fuzzy-query playbooks, fallback chains, or battle-report examples.
 - Read [references/export.md](references/export.md) when the user asks to export chat history.
 - Read [references/moments.md](references/moments.md) when the user asks about朋友圈、点赞、评论、转发内容或时间段动态。
-- Read [references/analytics.md](references/analytics.md) when the user asks for overall statistics, top contacts, or activity timing patterns.

@@ -76,11 +76,10 @@ function makeMessage(overrides = {}) {
 
 async function main() {
   assertNoForbiddenPattern(/executeMcpTool|from .*mcp|Mcp/, 'MCP dependency')
-  assertNoForbiddenPattern(/chatService|httpApi|analyticsService|groupAnalyticsService|retrievalEngine|memoryDatabase|chatSearchIndexService/, 'business service dependency')
+  assertNoForbiddenPattern(/chatService|httpApi|retrievalEngine|memoryDatabase|chatSearchIndexService/, 'business service dependency')
 
   const nodeNames = require(fromRoot('electron', 'services', 'ai-agent', 'qa', 'nodeNames.ts'))
   assert.equal(nodeNames.AGENT_TOOL_NODE_NAMES.search_messages, '语义搜索')
-  assert.equal(nodeNames.getAgentNodeName({ toolName: 'get_keyword_statistics' }), '关键词统计')
   assert.equal(nodeNames.getAgentNodeName({ stage: 'answer' }), '生成回答')
 
   const progress = require(fromRoot('electron', 'services', 'ai-agent', 'qa', 'progress.ts'))
@@ -104,8 +103,6 @@ async function main() {
     'read_latest',
     'read_by_time_range',
     'resolve_participant',
-    'get_session_statistics',
-    'get_keyword_statistics',
     'aggregate_messages',
     'answer'
   ])
@@ -151,35 +148,6 @@ async function main() {
     makeMessage({ cursor: { localId: 3, createTime: 300, sortSeq: 300 }, text: 'duplicate' })
   ])
   assert.deepEqual(deduped.map((item) => item.cursor.localId), [1, 3])
-
-  const originalGetMessages = repository.getMessages.bind(repository)
-  const originalLoadDisplayNameMap = repository.loadDisplayNameMap.bind(repository)
-  const originalGetSessionRef = repository.getSessionRef.bind(repository)
-  repository.getMessages = () => ({
-    items: [
-      makeMessage({ cursor: { localId: 1, createTime: 100, sortSeq: 100 }, text: '预算 明天确认', rawText: '' }),
-      makeMessage({ cursor: { localId: 2, createTime: 200, sortSeq: 200 }, text: '没有相关词', rawText: '' }),
-      makeMessage({ cursor: { localId: 3, createTime: 300, sortSeq: 300 }, text: '预算 已经更新', rawText: '', senderUsername: 'bob', displayName: 'Bob' })
-    ],
-    scanned: 3,
-    hasMore: false
-  })
-  repository.loadDisplayNameMap = () => new Map([['alice', 'Alice'], ['bob', 'Bob']])
-  repository.getSessionRef = (sessionId) => ({ sessionId, displayName: '测试会话', kind: 'friend' })
-
-  const statistics = require(fromRoot('electron', 'services', 'ai-agent', 'qa', 'tools', 'statistics.ts'))
-  const keywordStats = await statistics.loadKeywordStatistics('s1', {
-    action: 'get_keyword_statistics',
-    keywords: ['预算'],
-    matchMode: 'substring'
-  })
-  assert.equal(keywordStats.payload.matchedMessages, 2)
-  assert.equal(keywordStats.payload.keywords[0].occurrenceCount, 2)
-  assert.equal(keywordStats.toolCall.nodeName, '关键词统计')
-
-  repository.getMessages = originalGetMessages
-  repository.loadDisplayNameMap = originalLoadDisplayNameMap
-  repository.getSessionRef = originalGetSessionRef
 
   const participant = require(fromRoot('electron', 'services', 'ai-agent', 'qa', 'tools', 'participant.ts'))
   const resolved = await participant.resolveParticipantName({

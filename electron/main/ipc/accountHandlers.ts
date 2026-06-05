@@ -1,17 +1,11 @@
 import { ipcMain } from 'electron'
 import type { MainProcessContext } from '../context'
-import { analyticsService } from '../../services/analyticsService'
-import { annualReportService } from '../../services/annualReportService'
 import { chatService } from '../../services/chatService'
-import { groupAnalyticsService } from '../../services/groupAnalyticsService'
 import { clearMessageDbScannerCache } from '../../services/messageDbScanner'
 
 function clearStatsCaches(): void {
   clearMessageDbScannerCache()
   chatService.close()
-  analyticsService.close()
-  annualReportService.close()
-  groupAnalyticsService.close()
 }
 
 export function registerAccountHandlers(ctx: MainProcessContext): void {

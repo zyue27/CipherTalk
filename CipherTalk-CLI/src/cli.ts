@@ -10,10 +10,8 @@ import { registerKeyCommand } from './commands/key.js'
 import { registerMcpCommand } from './commands/mcp.js'
 import { registerMessagesCommand } from './commands/messages.js'
 import { registerMomentsCommand } from './commands/moments.js'
-import { registerReportCommand } from './commands/report.js'
 import { registerSearchCommand } from './commands/search.js'
 import { registerSessionsCommand } from './commands/sessions.js'
-import { registerStatsCommand } from './commands/stats.js'
 import { registerStatusCommand } from './commands/status.js'
 
 export interface CreateProgramOptions {
@@ -53,10 +51,8 @@ export function createProgram(options: CreateProgramOptions = {}): Command {
   registerContactsCommand(program, context)
   registerKeyCommand(program, context)
   registerSearchCommand(program, context)
-  registerStatsCommand(program, context)
   registerExportCommand(program, context)
   registerMomentsCommand(program, context)
-  registerReportCommand(program, context)
   registerMcpCommand(program, context)
 
   return program

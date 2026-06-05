@@ -2,8 +2,6 @@ import type { MainProcessContext } from '../context'
 import { registerAccountHandlers } from './accountHandlers'
 import { registerActivationHandlers } from './activationHandlers'
 import { registerAiHandlers } from './aiHandlers'
-import { registerAnalyticsHandlers } from './analyticsHandlers'
-import { registerAnnualReportHandlers } from './annualReportHandlers'
 import { registerAppHandlers } from './appHandlers'
 import { registerAppUpdateHandlers } from './appUpdateHandlers'
 import { registerAuthHandlers } from './authHandlers'
@@ -14,7 +12,6 @@ import { registerDataManagementHandlers } from './dataManagementHandlers'
 import { registerDataHandlers } from './dataHandlers'
 import { registerDbPathHandlers } from './dbPathHandlers'
 import { registerExportHandlers } from './exportHandlers'
-import { registerGroupAnalyticsHandlers } from './groupAnalyticsHandlers'
 import { registerHttpApiHandlers } from './httpApiHandlers'
 import { registerLogHandlers } from './logHandlers'
 import { registerMediaHandlers } from './mediaHandlers'
@@ -47,9 +44,6 @@ export function registerModularIpcHandlers(ctx: MainProcessContext): void {
   registerChatHandlers(ctx)
   registerSnsHandlers(ctx)
   registerExportHandlers(ctx)
-  registerAnalyticsHandlers(ctx)
-  registerGroupAnalyticsHandlers(ctx)
-  registerAnnualReportHandlers(ctx)
   registerActivationHandlers(ctx)
   registerCacheHandlers(ctx)
   registerLogHandlers(ctx)

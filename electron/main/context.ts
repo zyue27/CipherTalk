@@ -27,8 +27,6 @@ export interface WindowManager {
   setDockIcon(): void
   openChatWindow(): BrowserWindow
   openMomentsWindow(filterUsername?: string): BrowserWindow
-  openGroupAnalyticsWindow(): BrowserWindow
-  openAnnualReportWindow(year: number): BrowserWindow
   openAgreementWindow(): BrowserWindow
   openWelcomeWindow(mode?: 'default' | 'add-account'): BrowserWindow
   openPurchaseWindow(): BrowserWindow

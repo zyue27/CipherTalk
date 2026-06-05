@@ -1,7 +1,7 @@
-import { groupAnalyticsService } from './groupAnalyticsService'
 import { querySessions } from './httpApiFacade'
 import { chatService, type ChatLabSourceMessage, type ChatRecordItem as SourceChatRecordItem } from './chatService'
 import { ConfigService } from './config'
+import { groupMetadataService } from './groupMetadataService'
 import type {
   ChatLabHeader,
   ChatLabMember,
@@ -308,17 +308,20 @@ class ChatLabController {
   }
 
   private async loadGroupInfoMap(): Promise<Map<string, { memberCount: number }>> {
-    const result = await groupAnalyticsService.getGroupChats()
+    const sessionsResult = await chatService.getSessions()
     const map = new Map<string, { memberCount: number }>()
 
-    if (!result.success || !result.data) {
+    if (!sessionsResult.success || !sessionsResult.sessions) {
       return map
     }
 
-    for (const group of result.data) {
-      map.set(group.username, {
-        memberCount: Number(group.memberCount || 0)
-      })
+    const groupIds = sessionsResult.sessions
+      .map((session) => session.username)
+      .filter((username) => username.endsWith('@chatroom'))
+    const memberCounts = await groupMetadataService.getMemberCountMap(groupIds)
+
+    for (const [username, memberCount] of memberCounts) {
+      map.set(username, { memberCount })
     }
 
     return map
@@ -380,9 +383,9 @@ class ChatLabController {
     const cachedMemberMap = this.buildMemberMap(cachedMembers)
 
     if (sessionType === 'group') {
-      const groupMembersResult = await groupAnalyticsService.getGroupMembers(sessionId)
-      if (groupMembersResult.success && groupMembersResult.data && groupMembersResult.data.length > 0) {
-        for (const member of groupMembersResult.data) {
+      const groupMembers = await groupMetadataService.getGroupMembers(sessionId)
+      if (groupMembers.length > 0) {
+        for (const member of groupMembers) {
           this.mergeMember(members, {
             platformId: member.username,
             accountName: member.displayName || member.username,

@@ -25,10 +25,8 @@ const COMMANDS: InteractiveCommand[] = [
   { name: '/contact', usage: '/contact <wxid或名称>', description: '查看联系人详情' },
   { name: '/key', usage: '/key setup|get|test|set <hex>', description: '密钥管理' },
   { name: '/search', usage: '/search <关键词>', description: '全文搜索' },
-  { name: '/stats', usage: '/stats global|contacts|time|session|keywords|group', description: '统计分析' },
   { name: '/export', usage: '/export <会话> [--output path]', description: '导出聊天数据' },
   { name: '/moments', usage: '/moments [--limit 20]', description: '朋友圈数据' },
-  { name: '/report', usage: '/report [--year 2025|--all-time]', description: '年度报告数据' },
   { name: '/mcp', usage: '/mcp serve', description: '独立 MCP Server 模式' },
   { name: '/help', usage: '/help', description: '显示命令列表' },
   { name: '/exit', usage: '/exit', description: '退出交互模式' }
@@ -539,16 +537,6 @@ async function runShellCommand(line: string, context: CommandContext, globals: G
         writeEnvelope(context.output, successEnvelope({ messages: result.messages }, { total: result.total, keyword, limit }), format)
         return true
       }
-      case '/stats': {
-        const sub = positional[0] || 'global'
-        const result = await context.services.advanced.stats(config, {
-          type: sub as any,
-          session: positional[1],
-          top: typeof options.top === 'string' ? Number(options.top) : undefined
-        })
-        writeEnvelope(context.output, successEnvelope(result), format)
-        return true
-      }
       case '/export': {
         const result = await context.services.advanced.exportChat(config, {
           session: positional[0],
@@ -572,26 +560,6 @@ async function runShellCommand(line: string, context: CommandContext, globals: G
         writeEnvelope(context.output, successEnvelope({ entries: result.entries }, {
           total: result.total,
           limit: result.limit,
-          ...(result.meta || {})
-        }), format)
-        return true
-      }
-      case '/report': {
-        const yearRaw = asString(options.year)
-        const yearNum = yearRaw !== undefined ? Number(yearRaw) : undefined
-        const topContactsRaw = asString(options['top-contacts'])
-        const topKeywordsRaw = asString(options['top-keywords'])
-        const result = await context.services.advanced.report(config, {
-          year: Number.isFinite(yearNum) ? yearNum : undefined,
-          allTime: options['all-time'] === true,
-          session: asString(options.session),
-          topContacts: topContactsRaw !== undefined ? Number(topContactsRaw) : undefined,
-          topKeywords: topKeywordsRaw !== undefined ? Number(topKeywordsRaw) : undefined
-        })
-        writeEnvelope(context.output, successEnvelope(result, {
-          scope: result.scope,
-          year: result.year,
-          sessionId: result.sessionId,
           ...(result.meta || {})
         }), format)
         return true

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
@@ -9,11 +9,7 @@ import DecryptProgressOverlay from './components/DecryptProgressOverlay'
 import WelcomePage from './pages/WelcomePage'
 import HomePage from './pages/HomePage'
 import ChatPage from './pages/ChatPage'
-import AnalyticsPage from './pages/AnalyticsPage'
-import AnnualReportPage from './pages/AnnualReportPage'
-import AnnualReportWindow from './pages/AnnualReportWindow'
 import AgreementPage from './pages/AgreementPage'
-import GroupAnalyticsPage from './pages/GroupAnalyticsPage'
 import DataManagementPage from './pages/DataManagementPage'
 import SettingsPage from './pages/SettingsPage'
 import OpenApiPage from './pages/OpenApiPage'
@@ -331,16 +327,14 @@ function App() {
 
   // 检查是否是独立聊天窗口
   const isChatWindow = location.pathname === '/chat-window'
-  const isGroupAnalyticsWindow = location.pathname === '/group-analytics-window'
   const isMomentsWindow = location.pathname === '/moments-window'
-  const isAnnualReportWindow = location.pathname === '/annual-report-window'
   const isAgreementWindow = location.pathname === '/agreement-window'
   const isWelcomeWindow = location.pathname === '/welcome-window'
 
   // 启动时自动检查配置并连接数据库
   useEffect(() => {
     // 独立窗口不需要自动连接主数据库
-    if (isChatWindow || isGroupAnalyticsWindow || isMomentsWindow || isAnnualReportWindow || isAgreementWindow || isWelcomeWindow || location.pathname === '/image-viewer-window') return
+    if (isChatWindow || isMomentsWindow || isAgreementWindow || isWelcomeWindow || location.pathname === '/image-viewer-window') return
 
     const autoConnect = async () => {
       try {
@@ -408,7 +402,7 @@ function App() {
     }
 
     autoConnect()
-  }, [isChatWindow, isGroupAnalyticsWindow, isMomentsWindow, isAnnualReportWindow, isAgreementWindow, isWelcomeWindow, location.pathname, navigate, setDbConnected])
+  }, [isChatWindow, isMomentsWindow, isAgreementWindow, isWelcomeWindow, location.pathname, navigate, setDbConnected])
 
   // 独立聊天窗口 - 只显示聊天页面，无侧边栏
   if (isChatWindow) {
@@ -419,30 +413,12 @@ function App() {
     )
   }
 
-  // 独立群聊分析窗口
-  if (isGroupAnalyticsWindow) {
-    return (
-      <div className="chat-window-container">
-        <GroupAnalyticsPage />
-      </div>
-    )
-  }
-
   // 独立朋友圈窗口
   if (isMomentsWindow) {
     return (
       <div className="standalone-window">
         <TitleBar variant="standalone" className="moments-title-bar" />
         <MomentsWindow />
-      </div>
-    )
-  }
-
-  // 独立年度报告窗口
-  if (isAnnualReportWindow) {
-    return (
-      <div className="chat-window-container">
-        <AnnualReportWindow />
       </div>
     )
   }
@@ -509,7 +485,7 @@ function App() {
                 <h3>一、用户协议</h3>
 
                 <h4>1. 软件性质与用途说明</h4>
-                <p>1.1 本软件是一款技术研究工具，用于读取和分析用户本地设备上已存在的微信数据文件，主要功能包括但不限于：本地数据文件解析、聊天记录查看、数据统计分析、年度报告生成及数据导出。</p>
+                <p>1.1 本软件是一款技术研究工具，用于读取和查看用户本地设备上已存在的微信数据文件，主要功能包括但不限于：本地数据文件解析、聊天记录查看及数据导出。</p>
                 <p>1.2 本软件仅供用户个人学习、研究和技术交流之目的使用，不得用于任何商业用途。</p>
                 <p>1.3 本软件仅作为数据查看工具，不具备也不提供任何主动获取、拦截、窃取数据的能力，所有操作均基于用户本地设备上已存在的文件。</p>
 
@@ -695,8 +671,10 @@ function App() {
             <Routes>
               <Route path="/" element={<WelcomePage />} />
               <Route path="/home" element={<HomePage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/annual-report" element={<AnnualReportPage />} />
+              <Route path="/analytics" element={<Navigate to="/home" replace />} />
+              <Route path="/annual-report" element={<Navigate to="/home" replace />} />
+              <Route path="/group-analytics-window" element={<Navigate to="/home" replace />} />
+              <Route path="/annual-report-window" element={<Navigate to="/home" replace />} />
               <Route path="/data-management" element={<DataManagementPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/open-api" element={<OpenApiPage />} />

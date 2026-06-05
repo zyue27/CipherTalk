@@ -10,13 +10,7 @@ export const MCP_TOOL_NAMES = [
   'search_messages',
   'search_memory',
   'transcribe_voice_message',
-  'transcribe_audio_file',
-  'get_session_context',
-  'get_session_statistics',
-  'get_keyword_statistics',
-  'get_global_statistics',
-  'get_contact_rankings',
-  'get_activity_distribution'
+  'get_session_context'
 ] as const
 
 export const MCP_CONTACT_KINDS = [
@@ -521,56 +515,6 @@ export interface McpMemorySearchPayload {
   latencyMs: number
 }
 
-export interface McpTimeRange {
-  startTime?: number
-  startTimeMs?: number
-  endTime?: number
-  endTimeMs?: number
-}
-
-export interface McpGlobalStatisticsPayload {
-  totalMessages: number
-  textMessages: number
-  imageMessages: number
-  voiceMessages: number
-  videoMessages: number
-  emojiMessages: number
-  otherMessages: number
-  sentMessages: number
-  receivedMessages: number
-  firstMessageTime: number | null
-  firstMessageTimeMs: number | null
-  lastMessageTime: number | null
-  lastMessageTimeMs: number | null
-  activeDays: number
-  messageTypeCounts: Record<number, number>
-  timeRange: McpTimeRange
-}
-
-export interface McpContactRankingItem {
-  contactId: string
-  displayName: string
-  avatarUrl?: string
-  messageCount: number
-  sentCount: number
-  receivedCount: number
-  lastMessageTime: number | null
-  lastMessageTimeMs: number | null
-}
-
-export interface McpContactRankingsPayload {
-  items: McpContactRankingItem[]
-  limit: number
-  timeRange: McpTimeRange
-}
-
-export interface McpActivityDistributionPayload {
-  hourlyDistribution: Record<number, number>
-  weekdayDistribution: Record<number, number>
-  monthlyDistribution: Record<string, number>
-  timeRange: McpTimeRange
-}
-
 export interface McpSessionContextPayload {
   session: McpSessionRef
   mode: McpSessionContextMode
@@ -578,73 +522,6 @@ export interface McpSessionContextPayload {
   items: McpMessageItem[]
   hasMoreBefore: boolean
   hasMoreAfter: boolean
-}
-
-export interface McpParticipantStatisticsItem {
-  senderUsername: string | null
-  displayName: string
-  role: 'self' | 'other' | 'member' | 'unknown'
-  messageCount: number
-  sentCount: number
-  receivedCount: number
-  firstMessageTime: number | null
-  firstMessageTimeMs: number | null
-  lastMessageTime: number | null
-  lastMessageTimeMs: number | null
-  kindCounts: Partial<Record<McpMessageKind, number>>
-}
-
-export interface McpSessionStatisticsPayload {
-  session: McpSessionRef
-  totalMessages: number
-  sentMessages: number
-  receivedMessages: number
-  firstMessageTime: number | null
-  firstMessageTimeMs: number | null
-  lastMessageTime: number | null
-  lastMessageTimeMs: number | null
-  activeDays: number
-  kindCounts: Partial<Record<McpMessageKind, number>>
-  messageTypeCounts: Record<number, number>
-  hourlyDistribution: Record<number, number>
-  weekdayDistribution: Record<number, number>
-  monthlyDistribution: Record<string, number>
-  participantRankings: McpParticipantStatisticsItem[]
-  samples?: McpMessageItem[]
-  scannedMessages: number
-  matchedMessages: number
-  truncated: boolean
-  timeRange: McpTimeRange
-}
-
-export interface McpKeywordStatisticsSample {
-  keyword: string
-  excerpt: string
-  message: McpMessageItem
-}
-
-export interface McpKeywordStatisticsItem {
-  keyword: string
-  matchMode: McpSearchMatchMode
-  hitCount: number
-  occurrenceCount: number
-  firstHitTime: number | null
-  firstHitTimeMs: number | null
-  lastHitTime: number | null
-  lastHitTimeMs: number | null
-  participantRankings: McpParticipantStatisticsItem[]
-  hourlyDistribution: Record<number, number>
-  monthlyDistribution: Record<string, number>
-  samples: McpKeywordStatisticsSample[]
-}
-
-export interface McpKeywordStatisticsPayload {
-  session: McpSessionRef
-  keywords: McpKeywordStatisticsItem[]
-  scannedMessages: number
-  matchedMessages: number
-  truncated: boolean
-  timeRange: McpTimeRange
 }
 
 export interface McpStreamMetaPayload {
@@ -672,8 +549,6 @@ export interface McpStreamPartialPayloadMap {
   search_messages: Partial<McpSearchMessagesPayload>
   search_memory: Partial<McpMemorySearchPayload>
   get_session_context: Partial<McpSessionContextPayload>
-  get_session_statistics: Partial<McpSessionStatisticsPayload>
-  get_keyword_statistics: Partial<McpKeywordStatisticsPayload>
 }
 
 export type McpStreamPartialPayload =
@@ -684,8 +559,6 @@ export type McpStreamPartialPayload =
   | McpStreamPartialPayloadMap['search_messages']
   | McpStreamPartialPayloadMap['search_memory']
   | McpStreamPartialPayloadMap['get_session_context']
-  | McpStreamPartialPayloadMap['get_session_statistics']
-  | McpStreamPartialPayloadMap['get_keyword_statistics']
 
 export interface McpStreamMetaEvent {
   event: 'meta'
@@ -748,11 +621,6 @@ export interface McpToolPayloadMap {
   transcribe_voice_message: McpVoiceTranscriptionPayload
   transcribe_audio_file: McpAudioFileTranscriptionPayload
   get_session_context: McpSessionContextPayload
-  get_session_statistics: McpSessionStatisticsPayload
-  get_keyword_statistics: McpKeywordStatisticsPayload
-  get_global_statistics: McpGlobalStatisticsPayload
-  get_contact_rankings: McpContactRankingsPayload
-  get_activity_distribution: McpActivityDistributionPayload
 }
 
 /** executeMcpTool 的类型安全返回值 */

@@ -67,16 +67,6 @@ export interface SearchResult {
   total: number
 }
 
-export interface StatsOptions {
-  type: 'global' | 'contacts' | 'time' | 'session' | 'keywords' | 'group'
-  session?: string
-  top?: number
-  year?: number
-  from?: string
-  to?: string
-  by?: string
-}
-
 export interface ExportOptions {
   session?: string
   all?: boolean
@@ -84,43 +74,6 @@ export interface ExportOptions {
   from?: string
   to?: string
   withMedia?: boolean
-}
-
-export interface GlobalStats {
-  totalMessages: number
-  totalSessions: number
-  totalContacts: number
-  textMessages: number
-  mediaMessages: number
-  timeRange?: { first: number | null; last: number | null }
-}
-
-export interface ContactStats {
-  contacts: Array<{ wxid: string; displayName: string; messageCount: number }>
-}
-
-export interface TimeStats {
-  distribution: Record<string, number>
-}
-
-export interface SessionStats {
-  totalMessages: number
-  textMessages: number
-  mediaMessages: number
-  sentMessages: number
-  receivedMessages: number
-  activeDays: number
-  firstMessageTime: number | null
-  lastMessageTime: number | null
-}
-
-export interface KeywordStats {
-  keywords: Array<{ word: string; count: number }>
-}
-
-export interface GroupStats {
-  totalMessages: number
-  activeMembers: number
 }
 
 export interface MomentsOptions {
@@ -151,50 +104,10 @@ export interface MomentsResult {
   }
 }
 
-export interface ReportOptions {
-  year?: number
-  allTime?: boolean
-  session?: string
-  topContacts?: number
-  topKeywords?: number
-}
-
-export interface ReportMessageRef {
-  time: number | null
-  content: string
-}
-
-export interface ReportSummary {
-  totalMessages: number
-  sentMessages: number
-  receivedMessages: number
-  activeDays: number
-  topContacts: Array<{ wxid: string; displayName: string; count: number }>
-  topKeywords: Array<{ word: string; count: number }>
-  hourlyDistribution: Record<string, number>
-  firstMessage: ReportMessageRef | null
-  lastMessage: ReportMessageRef | null
-}
-
-export interface ReportResult {
-  scope: 'year' | 'all' | 'session'
-  year?: number
-  sessionId?: string
-  summary: ReportSummary
-  meta?: {
-    dbCount: number
-    tableCount: number
-    truncated?: boolean
-    note?: string
-  }
-}
-
 export interface AdvancedService {
   search(config: RuntimeConfig, keyword: string, options?: { session?: string; limit?: number; from?: string; to?: string }): Promise<SearchResult>
-  stats(config: RuntimeConfig, options: StatsOptions): Promise<GlobalStats | ContactStats | TimeStats | SessionStats | KeywordStats | GroupStats>
   exportChat(config: RuntimeConfig, options: ExportOptions): Promise<{ path: string; count: number }>
   moments(config: RuntimeConfig, options?: MomentsOptions): Promise<MomentsResult>
-  report(config: RuntimeConfig, options?: ReportOptions): Promise<ReportResult>
   mcpServe(): Promise<never>
 }
 

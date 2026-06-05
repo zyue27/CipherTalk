@@ -107,16 +107,14 @@ describe('cli command registration', () => {
     let exitCode = 0
     const program = createProgram({
       services: {
-        data: mockData,
-        key: mockKey,
-        advanced: {
-          async search() { throw notImplemented('search') },
-          async stats() { throw notImplemented('stats') },
-          async exportChat() { throw notImplemented('export') },
-          async moments() { throw notImplemented('moments') },
-          async report() { throw notImplemented('report') },
-          async mcpServe() { throw notImplemented('mcp serve') }
-        }
+          data: mockData,
+          key: mockKey,
+          advanced: {
+            async search() { throw notImplemented('search') },
+            async exportChat() { throw notImplemented('export') },
+            async moments() { throw notImplemented('moments') },
+            async mcpServe() { throw notImplemented('mcp serve') }
+          }
       },
       output: output.target,
       setExitCode: (code) => { exitCode = code }
@@ -153,8 +151,7 @@ describe('cli command registration', () => {
     expect(filterInteractiveCommands('/s').map((command) => command.name)).toEqual(expect.arrayContaining([
       '/status',
       '/sessions',
-      '/search',
-      '/stats'
+      '/search'
     ]))
     expect(filterInteractiveCommands('status')).toEqual([])
   })

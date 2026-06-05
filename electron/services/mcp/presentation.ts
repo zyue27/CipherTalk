@@ -13,13 +13,11 @@ import {
   type McpAudioFileTranscriptionPayload,
   type McpMomentItem,
   type McpMomentsTimelinePayload,
-  type McpKeywordStatisticsPayload,
   type McpResolveSessionPayload,
   type McpResolvedSessionCandidate,
   type McpSearchHit,
   type McpSearchMessagesPayload,
   type McpSessionContextPayload,
-  type McpSessionStatisticsPayload,
   type McpSessionsPayload,
   type McpToolName
 } from './types'
@@ -288,71 +286,6 @@ const retrievalRerankSchema = z.object({
   error: z.string().optional()
 }).passthrough()
 
-const participantStatisticsSchema = z.object({
-  senderUsername: z.string().nullable(),
-  displayName: z.string(),
-  role: z.enum(['self', 'other', 'member', 'unknown']),
-  messageCount: z.number(),
-  sentCount: z.number(),
-  receivedCount: z.number(),
-  firstMessageTime: z.number().nullable(),
-  firstMessageTimeMs: z.number().nullable(),
-  lastMessageTime: z.number().nullable(),
-  lastMessageTimeMs: z.number().nullable(),
-  kindCounts: z.record(z.string(), z.number())
-}).passthrough()
-
-const timeRangeSchema = z.object({
-  startTime: z.number().optional(),
-  startTimeMs: z.number().optional(),
-  endTime: z.number().optional(),
-  endTimeMs: z.number().optional()
-}).passthrough()
-
-const sessionStatisticsSchema = z.object({
-  session: sessionRefSchema,
-  totalMessages: z.number(),
-  sentMessages: z.number(),
-  receivedMessages: z.number(),
-  firstMessageTime: z.number().nullable(),
-  firstMessageTimeMs: z.number().nullable(),
-  lastMessageTime: z.number().nullable(),
-  lastMessageTimeMs: z.number().nullable(),
-  activeDays: z.number(),
-  kindCounts: z.record(z.string(), z.number()),
-  messageTypeCounts: z.record(z.string(), z.number()),
-  hourlyDistribution: z.record(z.string(), z.number()),
-  weekdayDistribution: z.record(z.string(), z.number()),
-  monthlyDistribution: z.record(z.string(), z.number()),
-  participantRankings: z.array(participantStatisticsSchema),
-  samples: z.array(messageItemSchema).optional(),
-  scannedMessages: z.number(),
-  matchedMessages: z.number(),
-  truncated: z.boolean(),
-  timeRange: timeRangeSchema
-}).passthrough()
-
-const keywordStatisticsSampleSchema = z.object({
-  keyword: z.string(),
-  excerpt: z.string(),
-  message: messageItemSchema
-}).passthrough()
-
-const keywordStatisticsItemSchema = z.object({
-  keyword: z.string(),
-  matchMode: z.enum(['substring', 'exact']),
-  hitCount: z.number(),
-  occurrenceCount: z.number(),
-  firstHitTime: z.number().nullable(),
-  firstHitTimeMs: z.number().nullable(),
-  lastHitTime: z.number().nullable(),
-  lastHitTimeMs: z.number().nullable(),
-  participantRankings: z.array(participantStatisticsSchema),
-  hourlyDistribution: z.record(z.string(), z.number()),
-  monthlyDistribution: z.record(z.string(), z.number()),
-  samples: z.array(keywordStatisticsSampleSchema)
-}).passthrough()
-
 export const toolOutputSchemas = {
   list_contacts: z.object({
     items: z.array(contactItemSchema),
@@ -431,15 +364,6 @@ export const toolOutputSchemas = {
     items: z.array(messageItemSchema),
     hasMoreBefore: z.boolean(),
     hasMoreAfter: z.boolean()
-  }).passthrough(),
-  get_session_statistics: sessionStatisticsSchema,
-  get_keyword_statistics: z.object({
-    session: sessionRefSchema,
-    keywords: z.array(keywordStatisticsItemSchema),
-    scannedMessages: z.number(),
-    matchedMessages: z.number(),
-    truncated: z.boolean(),
-    timeRange: timeRangeSchema
   }).passthrough(),
   get_moments_timeline: z.object({
     items: z.array(momentItemSchema),
@@ -609,22 +533,6 @@ function buildMomentsPreview(payload: McpMomentsTimelinePayload): string {
   return `${summary}${previewLines(lines)}`
 }
 
-function buildSessionStatisticsPreview(payload: McpSessionStatisticsPayload): string {
-  const summary = `Loaded session statistics for ${payload.session.displayName}: total=${payload.totalMessages}, sent=${payload.sentMessages}, received=${payload.receivedMessages}, scanned=${payload.scannedMessages}${payload.truncated ? ', truncated=yes' : ''}.`
-  const lines = payload.participantRankings.slice(0, PREVIEW_LIMIT).map((item, index) =>
-    `${index + 1}. ${compactText(item.displayName || item.senderUsername || item.role, item.role)} | messages=${item.messageCount} | sent=${item.sentCount} | received=${item.receivedCount}`
-  )
-  return `${summary}${previewLines(lines)}`
-}
-
-function buildKeywordStatisticsPreview(payload: McpKeywordStatisticsPayload): string {
-  const summary = `Loaded keyword statistics for ${payload.session.displayName}: keywords=${payload.keywords.length}, matched=${payload.matchedMessages}, scanned=${payload.scannedMessages}${payload.truncated ? ', truncated=yes' : ''}.`
-  const lines = payload.keywords.slice(0, PREVIEW_LIMIT).map((item, index) =>
-    `${index + 1}. ${item.keyword} | hits=${item.hitCount} | occurrences=${item.occurrenceCount} | first=${formatDateTime(item.firstHitTimeMs || 0)} | last=${formatDateTime(item.lastHitTimeMs || 0)}`
-  )
-  return `${summary}${previewLines(lines)}`
-}
-
 export function buildToolResultText(toolName: McpToolName, payload: unknown): string {
   switch (toolName) {
     case 'list_contacts':
@@ -645,10 +553,6 @@ export function buildToolResultText(toolName: McpToolName, payload: unknown): st
       return buildAudioFileTranscriptionPreview(payload as McpAudioFileTranscriptionPayload)
     case 'get_session_context':
       return buildSessionContextPreview(payload as McpSessionContextPayload)
-    case 'get_session_statistics':
-      return buildSessionStatisticsPreview(payload as McpSessionStatisticsPayload)
-    case 'get_keyword_statistics':
-      return buildKeywordStatisticsPreview(payload as McpKeywordStatisticsPayload)
     case 'get_moments_timeline':
       return buildMomentsPreview(payload as McpMomentsTimelinePayload)
     default:

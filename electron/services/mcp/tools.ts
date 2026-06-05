@@ -101,55 +101,6 @@ export function registerCipherTalkMcpTools(server: any) {
     }
   })
 
-  server.registerTool('get_global_statistics', {
-    title: 'Get Global Statistics',
-    description: 'Return global private-chat statistics for agent-side analysis.',
-    inputSchema: {
-      startTime: z.number().int().positive().optional().describe('Optional start timestamp in seconds or milliseconds.'),
-      endTime: z.number().int().positive().optional().describe('Optional end timestamp in seconds or milliseconds.')
-    }
-  }, async (args: unknown) => {
-    try {
-      const payload = await readService.getGlobalStatistics((args || {}) as any)
-      return createToolSuccess('Loaded global statistics.', payload)
-    } catch (error) {
-      return createToolError(error)
-    }
-  })
-
-  server.registerTool('get_contact_rankings', {
-    title: 'Get Contact Rankings',
-    description: 'Return ranked private-chat contacts by message count.',
-    inputSchema: {
-      limit: z.number().int().positive().optional().describe('Maximum number of contacts to return.'),
-      startTime: z.number().int().positive().optional().describe('Optional start timestamp in seconds or milliseconds.'),
-      endTime: z.number().int().positive().optional().describe('Optional end timestamp in seconds or milliseconds.')
-    }
-  }, async (args: unknown) => {
-    try {
-      const payload = await readService.getContactRankings((args || {}) as any)
-      return createToolSuccess(`Loaded ${payload.items.length} contact rankings.`, payload)
-    } catch (error) {
-      return createToolError(error)
-    }
-  })
-
-  server.registerTool('get_activity_distribution', {
-    title: 'Get Activity Distribution',
-    description: 'Return hourly, weekday, and monthly message distributions.',
-    inputSchema: {
-      startTime: z.number().int().positive().optional().describe('Optional start timestamp in seconds or milliseconds.'),
-      endTime: z.number().int().positive().optional().describe('Optional end timestamp in seconds or milliseconds.')
-    }
-  }, async (args: unknown) => {
-    try {
-      const payload = await readService.getActivityDistribution((args || {}) as any)
-      return createToolSuccess('Loaded activity distribution.', payload)
-    } catch (error) {
-      return createToolError(error)
-    }
-  })
-
   server.registerTool('list_sessions', {
     title: 'List Sessions',
     description: 'List chat sessions with search and pagination. Use as a fuzzy discovery entry point when the user only remembers part of a name, remark, institution, or recent clue. Recent message preview is in items[].lastMessagePreview.',
@@ -331,44 +282,4 @@ export function registerCipherTalkMcpTools(server: any) {
     }
   })
 
-  server.registerTool('get_session_statistics', {
-    title: 'Get Session Statistics',
-    description: 'Return accurate statistics for one chat session, including message totals, sender rankings, message kinds, and time distributions.',
-    inputSchema: {
-      sessionId: z.string().trim().min(1).describe('Required session identifier. Accepts sessionId, contactId, display name, remark, or nickname when uniquely resolvable.'),
-      startTime: z.number().int().positive().optional().describe('Optional start timestamp in seconds or milliseconds.'),
-      endTime: z.number().int().positive().optional().describe('Optional end timestamp in seconds or milliseconds.'),
-      includeSamples: z.boolean().optional().describe('Include up to five sample messages when true.'),
-      participantLimit: z.number().int().positive().optional().describe('Maximum number of participant ranking rows to return.')
-    },
-    outputSchema: toolOutputSchemas.get_session_statistics
-  }, async (args: unknown) => {
-    try {
-      const payload = await readService.getSessionStatistics((args || {}) as any)
-      return createToolSuccess(buildToolResultText('get_session_statistics', payload), payload)
-    } catch (error) {
-      return createToolError(error)
-    }
-  })
-
-  server.registerTool('get_keyword_statistics', {
-    title: 'Get Keyword Statistics',
-    description: 'Return accurate per-keyword hit counts, occurrence counts, sender distribution, time distribution, and sample evidence for one chat session.',
-    inputSchema: {
-      sessionId: z.string().trim().min(1).describe('Required session identifier. Accepts sessionId, contactId, display name, remark, or nickname when uniquely resolvable.'),
-      keywords: z.array(z.string().trim().min(1)).min(1).max(20).describe('Keywords or exact phrases to count.'),
-      startTime: z.number().int().positive().optional().describe('Optional start timestamp in seconds or milliseconds.'),
-      endTime: z.number().int().positive().optional().describe('Optional end timestamp in seconds or milliseconds.'),
-      matchMode: z.enum(['substring', 'exact']).optional().describe('substring counts contained phrases; exact only counts messages whose normalized text equals the keyword.'),
-      participantLimit: z.number().int().positive().optional().describe('Maximum number of participant ranking rows to return.')
-    },
-    outputSchema: toolOutputSchemas.get_keyword_statistics
-  }, async (args: unknown) => {
-    try {
-      const payload = await readService.getKeywordStatistics((args || {}) as any)
-      return createToolSuccess(buildToolResultText('get_keyword_statistics', payload), payload)
-    } catch (error) {
-      return createToolError(error)
-    }
-  })
 }
