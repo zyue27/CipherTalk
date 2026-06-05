@@ -69,14 +69,35 @@ function collectByName(root: string, matcher: (name: string) => boolean, depth =
   return acc
 }
 
+function isMessageDbName(name: string): boolean {
+  return /^(?:msg|message)_\d+\.db$/i.test(name)
+}
+
+function collectDirectFiles(root: string, matcher: (name: string) => boolean): string[] {
+  const results: string[] = []
+  let entries: string[]
+  try { entries = readdirSync(root) } catch { return results }
+  for (const entry of entries) {
+    const full = join(root, entry)
+    try {
+      if (statSync(full).isFile() && matcher(entry.toLowerCase()) && !results.includes(full)) {
+        results.push(full)
+      }
+    } catch { /* ignore */ }
+  }
+  return results
+}
+
 /** 返回所有消息库绝对路径（msg_*.db / message_*.db），过滤 -wal/-shm/-journal 等旁路文件 */
 export function findMessageDbPaths(): string[] {
   const root = getDbStoragePath()
   if (!root) return []
-  return collectByName(root, (name) => {
-    if (!name.endsWith('.db')) return false
-    return name.startsWith('msg_') || name.startsWith('message_')
-  })
+  const fixedMessageDir = join(root, 'message')
+  if (existsSync(fixedMessageDir)) {
+    const direct = collectDirectFiles(fixedMessageDir, isMessageDbName)
+    if (direct.length > 0) return direct
+  }
+  return collectByName(root, isMessageDbName)
 }
 
 /** 返回主 session.db 的绝对路径（若有多个按 db_storage 语义挑一个）。 */

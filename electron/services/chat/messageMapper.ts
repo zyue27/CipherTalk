@@ -135,7 +135,7 @@ export async function getMessagesViaNativeCursor(
   const batchSize = Math.max(limit + 20, 80)
   let batch: { success: boolean; rows?: any[]; hasMore?: boolean; error?: string }
   try {
-    batch = await wcdbService.getMessageBatchViaCursor(sessionId, batchSize, false, 0, 0, true, 5)
+    batch = await wcdbService.getMessageBatchViaCursor(sessionId, batchSize, false, 0, 0, true, 1)
   } catch (e: any) {
     const error = e?.message || String(e)
     console.warn('[ChatService] native cursor getMessages 崩溃/退出，回退 SQL:', error)

@@ -493,6 +493,10 @@ export class WcdbCore {
     return Array.isArray(parsed) ? parsed : [parsed]
   }
 
+  private shouldTraceNativeCursor(): boolean {
+    return process.env.CIPHERTALK_CHAT_DEBUG === '1' || process.env.CIPHERTALK_WCDB_DEBUG === '1'
+  }
+
   async getNativeMessages(sessionId: string, limit: number, offset: number): Promise<{ success: boolean; rows?: any[]; error?: string }> {
     return { success: false, error: 'direct native 消息读取已禁用，请使用 cursor 路径' }
   }
@@ -515,6 +519,7 @@ export class WcdbCore {
     }
 
     try {
+      const startedAt = Date.now()
       const outCursor = [0]
       const result = this.wcdbOpenMessageCursor(
         this.handle,
@@ -525,8 +530,15 @@ export class WcdbCore {
         Math.max(0, Math.floor(Number(endTimestamp) || 0)),
         outCursor
       )
+      const elapsed = Date.now() - startedAt
       if (result !== 0 || outCursor[0] <= 0) {
+        console.warn(`[wcdbCore] native cursor open failed session=${sessionId} rc=${result} elapsed=${elapsed}ms`)
+        await this.printLogs()
         return { success: false, error: this.mapCursorStatusCode(result, '创建游标失败') }
+      }
+      if (this.shouldTraceNativeCursor() || elapsed >= 800) {
+        console.warn(`[wcdbCore] native cursor open ok session=${sessionId} cursor=${outCursor[0]} batch=${batchSize} asc=${ascending ? 1 : 0} begin=${beginTimestamp || 0} end=${endTimestamp || 0} elapsed=${elapsed}ms`)
+        await this.printLogs()
       }
       return { success: true, cursor: outCursor[0] }
     } catch (e: any) {
@@ -552,6 +564,7 @@ export class WcdbCore {
     }
 
     try {
+      const startedAt = Date.now()
       const outCursor = [0]
       const result = this.wcdbOpenMessageCursorLite(
         this.handle,
@@ -562,8 +575,15 @@ export class WcdbCore {
         Math.max(0, Math.floor(Number(endTimestamp) || 0)),
         outCursor
       )
+      const elapsed = Date.now() - startedAt
       if (result !== 0 || outCursor[0] <= 0) {
+        console.warn(`[wcdbCore] native cursor lite open failed session=${sessionId} rc=${result} elapsed=${elapsed}ms`)
+        await this.printLogs()
         return { success: false, error: this.mapCursorStatusCode(result, '创建轻量游标失败') }
+      }
+      if (this.shouldTraceNativeCursor() || elapsed >= 800) {
+        console.warn(`[wcdbCore] native cursor lite open ok session=${sessionId} cursor=${outCursor[0]} batch=${batchSize} asc=${ascending ? 1 : 0} begin=${beginTimestamp || 0} end=${endTimestamp || 0} elapsed=${elapsed}ms`)
+        await this.printLogs()
       }
       return { success: true, cursor: outCursor[0] }
     } catch (e: any) {
@@ -580,15 +600,25 @@ export class WcdbCore {
     }
 
     try {
+      const startedAt = Date.now()
       const outJson = [null as any]
       const outHasMore = [0]
       const result = this.wcdbFetchMessageBatch(this.handle, cursor, outJson, outHasMore)
+      const elapsed = Date.now() - startedAt
       if (result !== 0 || !outJson[0]) {
+        console.warn(`[wcdbCore] native cursor fetch failed cursor=${cursor} rc=${result} elapsed=${elapsed}ms`)
+        await this.printLogs()
         return { success: false, error: this.mapCursorStatusCode(result, '获取批次失败') }
       }
       const jsonStr = this.decodeJsonPtr(outJson[0])
       if (!jsonStr) return { success: false, error: '解析批次失败' }
-      return { success: true, rows: this.parseMessageJson(jsonStr), hasMore: outHasMore[0] === 1 }
+      const rows = this.parseMessageJson(jsonStr)
+      const hasMore = outHasMore[0] === 1
+      if (this.shouldTraceNativeCursor() || elapsed >= 800) {
+        console.warn(`[wcdbCore] native cursor fetch ok cursor=${cursor} rows=${rows.length} hasMore=${hasMore ? 1 : 0} jsonBytes=${jsonStr.length} elapsed=${elapsed}ms`)
+        await this.printLogs()
+      }
+      return { success: true, rows, hasMore }
     } catch (e: any) {
       return { success: false, error: e?.message || String(e) }
     }
@@ -603,11 +633,13 @@ export class WcdbCore {
     useLite: boolean = true,
     maxBatches: number = 1
   ): Promise<{ success: boolean; rows?: any[]; hasMore?: boolean; error?: string }> {
+    const startedAt = Date.now()
     const openRes = useLite
       ? await this.openMessageCursorLite(sessionId, batchSize, ascending, beginTimestamp, endTimestamp)
       : await this.openMessageCursor(sessionId, batchSize, ascending, beginTimestamp, endTimestamp)
 
     if (!openRes.success || !openRes.cursor) {
+      console.warn(`[wcdbCore] native cursor batch open failed session=${sessionId} elapsed=${Date.now() - startedAt}ms error=${openRes.error || ''}`)
       return { success: false, error: openRes.error || '创建消息游标失败' }
     }
 
@@ -629,6 +661,10 @@ export class WcdbCore {
         if (!hasMore || batchRows.length === 0) break
       }
 
+      const elapsed = Date.now() - startedAt
+      if (this.shouldTraceNativeCursor() || elapsed >= 1000) {
+        console.warn(`[wcdbCore] native cursor batch done session=${sessionId} cursor=${openRes.cursor} rows=${rows.length} hasMore=${hasMore ? 1 : 0} elapsed=${elapsed}ms`)
+      }
       return { success: true, rows, hasMore }
     } finally {
       await this.closeMessageCursor(openRes.cursor).catch(() => undefined)
