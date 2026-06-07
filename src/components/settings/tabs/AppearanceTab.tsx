@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { Description, Label, Radio, RadioGroup, Slider, Tabs, type Key } from '@heroui/react'
+import { Description, Label, Radio, RadioGroup, Slider, Switch, Tabs, type Key } from '@heroui/react'
 import { ImageIcon, Moon, Monitor, PanelBottom, PanelLeft, Sun, Upload, Video } from 'lucide-react'
 import {
   HOME_BACKGROUND_PRESETS,
@@ -47,6 +47,7 @@ function AppearanceTab() {
   } = useThemeStore()
   const quoteStyle = useSettingsStore(s => s.config.quoteStyle)
   const closeToTray = useSettingsStore(s => s.config.closeToTray)
+  const hardwareAccelerationEnabled = useSettingsStore(s => s.config.hardwareAccelerationEnabled)
   const setField = useSettingsStore(s => s.setField)
   const userInfo = useAppStore(s => s.userInfo)
   const [backgroundImporting, setBackgroundImporting] = useState(false)
@@ -294,6 +295,21 @@ function AppearanceTab() {
           </Radio.Content>
         </Radio>
       </RadioGroup>
+
+      <h3 className="section-title" style={{ marginTop: '2rem' }}>性能</h3>
+      <Switch
+        className="max-w-2xl"
+        isSelected={hardwareAccelerationEnabled}
+        onChange={(enabled) => setField('hardwareAccelerationEnabled', enabled)}
+      >
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+        <Switch.Content>
+          <Label>GPU 加速</Label>
+          <Description>默认开启。关闭后需要重启应用，适合显卡驱动异常、黑屏或渲染问题排查。</Description>
+        </Switch.Content>
+      </Switch>
     </div>
   )
 }

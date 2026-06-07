@@ -44,6 +44,7 @@ export const CONFIG_KEYS = {
   AUTH_PASSWORD_HASH: 'authPasswordHash',
   AUTH_PASSWORD_SALT: 'authPasswordSalt',
   CLOSE_TO_TRAY: 'closeToTray',
+  HARDWARE_ACCELERATION_ENABLED: 'hardwareAccelerationEnabled',
   AI_PROVIDER_MODEL_CACHE: 'aiProviderModelCache',
   AI_ACTIVE_CONFIG_PRESET_ID: 'aiActiveConfigPresetId'
 } as const
@@ -691,4 +692,15 @@ export async function getCloseToTray(): Promise<boolean> {
 // 设置关闭按钮行为
 export async function setCloseToTray(closeToTray: boolean): Promise<void> {
   await config.set(CONFIG_KEYS.CLOSE_TO_TRAY, closeToTray)
+}
+
+// --- 性能配置 ---
+
+export async function getHardwareAccelerationEnabled(): Promise<boolean> {
+  const value = await config.get(CONFIG_KEYS.HARDWARE_ACCELERATION_ENABLED)
+  return value !== undefined ? (value as boolean) : true
+}
+
+export async function setHardwareAccelerationEnabled(enabled: boolean): Promise<void> {
+  await config.set(CONFIG_KEYS.HARDWARE_ACCELERATION_ENABLED, enabled)
 }

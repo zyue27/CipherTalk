@@ -41,6 +41,7 @@ export interface SettingsConfig {
   exportPath: string
   exportDefaultDateRange: number
   closeToTray: boolean
+  hardwareAccelerationEnabled: boolean
 }
 
 export const DEFAULT_SETTINGS_CONFIG: SettingsConfig = {
@@ -75,7 +76,8 @@ export const DEFAULT_SETTINGS_CONFIG: SettingsConfig = {
   quoteStyle: 'default',
   exportPath: '',
   exportDefaultDateRange: 0,
-  closeToTray: true
+  closeToTray: true,
+  hardwareAccelerationEnabled: true
 }
 
 const CONFIG_KEYS = Object.keys(DEFAULT_SETTINGS_CONFIG) as (keyof SettingsConfig)[]

@@ -298,7 +298,7 @@ export function createWindowManager(ctx: MainProcessContext): WindowManager {
       attachWindowStartupDiagnostics(win, 'main')
       ctx.setMainWindow(win)
       markStartupMilestone('window:main-services-init-start')
-      const configService = new ConfigService()
+      const configService = ctx.getConfigService() ?? new ConfigService()
       ctx.setConfigService(configService)
       ctx.setDbService(new DatabaseService())
 

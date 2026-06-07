@@ -434,6 +434,8 @@ function SettingsLayout() {
       const savedCloseToTray = await configService.getCloseToTray()
       setCloseToTray(savedCloseToTray)
 
+      const savedHardwareAccelerationEnabled = await configService.getHardwareAccelerationEnabled()
+
       // 保存初始配置用于比较
       const loadedConfig = {
         decryptKey: savedKey || '',
@@ -464,6 +466,7 @@ function SettingsLayout() {
         aiApiKey: savedAiApiKey,
         aiModel: savedAiModel,
         closeToTray: savedCloseToTray,
+        hardwareAccelerationEnabled: savedHardwareAccelerationEnabled,
         editingAccountId: (editingAccount || activeAccount)?.id || ''
       }
       hydrateSettings(loadedConfig)
@@ -1316,6 +1319,7 @@ function SettingsLayout() {
 
       // 保存关闭行为配置
       await configService.setCloseToTray(storeConfig.closeToTray)
+      await configService.setHardwareAccelerationEnabled(storeConfig.hardwareAccelerationEnabled)
 
       // 如果数据库配置完整，尝试设置已连接状态（不进行耗时测试，仅标记）
       if (storeConfig.decryptKey && storeConfig.dbPath && storeConfig.wxid && storeConfig.decryptKey.length === 64 && isAccountVerified) {

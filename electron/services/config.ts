@@ -100,6 +100,9 @@ interface ConfigSchema {
   // 窗口关闭行为
   closeToTray: boolean
 
+  // 性能相关
+  hardwareAccelerationEnabled: boolean
+
   // AI 相关
   aiCurrentProvider: string  // 当前选中的提供商
   aiActiveConfigPresetId: string
@@ -196,6 +199,7 @@ const defaults: ConfigSchema = {
   httpApiToken: '',
   httpApiListenMode: 'localhost',
   closeToTray: true,  // 默认最小化到托盘
+  hardwareAccelerationEnabled: true,
   // AI 默认配置
   aiCurrentProvider: 'deepseek',
   aiActiveConfigPresetId: '',

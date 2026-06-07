@@ -54,7 +54,8 @@ export function useSettingsConfig() {
         quoteStyle: await configService.getQuoteStyle(),
         exportPath: await configService.getExportPath() || '',
         exportDefaultDateRange: await configService.getExportDefaultDateRange(),
-        closeToTray: await configService.getCloseToTray()
+        closeToTray: await configService.getCloseToTray(),
+        hardwareAccelerationEnabled: await configService.getHardwareAccelerationEnabled()
       }
 
       store.hydrate(config)
@@ -114,6 +115,7 @@ export function useSettingsConfig() {
       await configService.setSttOnlineTimeoutMs(config.sttOnlineTimeoutMs)
       await configService.setSttOnlineMaxConcurrency(config.sttOnlineMaxConcurrency)
       await configService.setCloseToTray(config.closeToTray)
+      await configService.setHardwareAccelerationEnabled(config.hardwareAccelerationEnabled)
 
       store.commit()
       showMessage('配置保存成功', true)

@@ -28,16 +28,29 @@ type AppWithQuitFlag = typeof app & {
 }
 
 const appWithQuitFlag = app as AppWithQuitFlag
+let dbService: DatabaseService | null = null
+let configService: ConfigService | null = null
+let logService: LogService | null = null
 
 function configureWindowsGpuPolicy(): void {
   if (process.platform !== 'win32') return
   if (!app.isPackaged) return
 
+  if (!configService) {
+    try {
+      configService = new ConfigService()
+      markStartupMilestone('startup:early-config-service-create-done')
+    } catch (error) {
+      logStartupError('startup:early-config-service-create-failed', error)
+    }
+  }
+
+  const hardwareAccelerationEnabled = configService?.get('hardwareAccelerationEnabled') !== false
   const shouldDisableGpu = process.env.CIPHERTALK_DISABLE_GPU === '1'
     || process.argv.includes('--disable-gpu')
     || process.argv.includes('--disable-hardware-acceleration')
 
-  if (!shouldDisableGpu) {
+  if (hardwareAccelerationEnabled && !shouldDisableGpu) {
     markStartupMilestone('startup:windows-gpu-enabled')
     return
   }
@@ -46,7 +59,7 @@ function configureWindowsGpuPolicy(): void {
     app.disableHardwareAcceleration()
     app.commandLine.appendSwitch('disable-gpu')
     app.commandLine.appendSwitch('disable-gpu-compositing')
-    markStartupMilestone('startup:windows-gpu-disabled-by-env')
+    markStartupMilestone('startup:windows-gpu-disabled-by-policy')
   } catch (error) {
     logStartupError('startup:windows-gpu-disable-failed', error)
   }
@@ -84,10 +97,6 @@ autoUpdater.disableDifferentialDownload = true  // 禁用差分更新，统一�
 markStartupMilestone('startup:auto-updater-configured')
 
 // 单例服务
-let dbService: DatabaseService | null = null
-
-let configService: ConfigService | null = null
-let logService: LogService | null = null
 
 // 系统托盘实例
 let tray: Tray | null = null
