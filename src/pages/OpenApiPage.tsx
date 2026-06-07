@@ -16,7 +16,6 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
-  Toast,
   toast,
 } from '@heroui/react'
 import {
@@ -302,7 +301,6 @@ function OpenApiPage() {
 
   return (
     <>
-      <Toast.Provider placement="top" />
       <ScrollShadow hideScrollBar className="h-full min-h-0 pb-3" size={56}>
         <div className="flex flex-col gap-3">
             {/* Header */}
@@ -356,7 +354,7 @@ function OpenApiPage() {
                 </Card.Description>
               </Card.Header>
               <Card.Content>
-                <div className="flex flex-col gap-[10px]">
+                <div className="flex flex-col gap-2.5">
                   {/* Enable switch */}
                   <Card className="p-2.25 rounded-2xl border border-border bg-surface">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -418,9 +416,9 @@ function OpenApiPage() {
                           min={1}
                           max={65535}
                           inputMode="numeric"
-                          className="pr-[52px]"
+                          className="pr-13"
                         />
-                        <div className="absolute right-0 top-0 bottom-0 flex flex-col w-[48px] -mr-[2px] border-l border-border bg-surface-tertiary rounded-r-[inherit] overflow-hidden">
+                        <div className="absolute right-0 top-0 bottom-0 flex flex-col w-12 -mr-0.5 border-l border-border bg-surface-tertiary rounded-r-[inherit] overflow-hidden">
                           <Button
                             isIconOnly
                             size="sm"
@@ -464,9 +462,9 @@ function OpenApiPage() {
                         <Input
                           type={showHttpApiToken ? 'text' : 'password'}
                           placeholder="局域网模式下必须填写"
-                          className="pr-[120px]"
+                          className="pr-30"
                         />
-                        <div className="absolute right-0 top-0 bottom-0 flex items-center gap-0 shrink-0 -mr-[2px] px-1 border-l border-border bg-surface-tertiary rounded-r-[inherit]">
+                        <div className="absolute right-0 top-0 bottom-0 flex items-center gap-0 shrink-0 -mr-0.5 px-1 border-l border-border bg-surface-tertiary rounded-r-[inherit]">
                           <Tooltip delay={0}>
                             <Button
                               isIconOnly
@@ -572,13 +570,13 @@ function OpenApiPage() {
                 </Card.Description>
               </Card.Header>
               <Card.Content>
-                <div className="flex flex-col gap-[10px]">
+                <div className="flex flex-col gap-2.5">
                   {/* Main panel */}
                   <Card className="p-2.25 rounded-2xl border border-border bg-gradient-to-b from-[rgba(15,23,42,0.02)] via-surface to-surface shadow-[0_12px_28px_rgba(15,23,42,0.05)]">
                     <div className="flex flex-col gap-2">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 flex-wrap">
                         <div className="flex gap-1 items-center">
-                          <div className="w-[42px] h-[42px] rounded-[14px] grid place-items-center text-accent bg-accent/10">
+                          <div className="w-10.5 h-10.5 rounded-[14px] grid place-items-center text-accent bg-accent/10">
                             <Network size={18} />
                           </div>
                           <div>
@@ -602,8 +600,8 @@ function OpenApiPage() {
                       <Card className="relative overflow-hidden rounded-[22px] border border-white/10 bg-gradient-to-br from-[rgba(25,29,34,0.98)] to-[rgba(42,47,53,0.94)] shadow-[0_18px_42px_rgba(15,23,42,0.14)]">
                         <div className="absolute inset-0 bg-gradient-to-r from-white/[0.08] to-transparent pointer-events-none" />
                         <div className="relative flex flex-col md:flex-row md:items-center">
-                          <div className="flex-1 min-w-0 px-2 md:px-[10px] py-2 md:py-[9px]">
-                            <div className="flex gap-[3px] items-center">
+                          <div className="flex-1 min-w-0 px-2 md:px-2.5 py-2 md:py-2.25">
+                            <div className="flex gap-0.75 items-center">
                               <Link2 size={14} className="text-white/60" />
                               <span className="text-[10px] text-white/60 uppercase tracking-wider font-bold">
                                 ChatLab Base URL
@@ -614,7 +612,7 @@ function OpenApiPage() {
                             </p>
                           </div>
 
-                          <div className="px-2 md:px-1.5 pb-2 md:pb-0 pt-0 md:pt-0 border-t md:border-t-0 md:border-l border-white/[0.08] flex items-center justify-center md:min-w-[142px]">
+                          <div className="px-2 md:px-1.5 pb-2 md:pb-0 pt-0 md:pt-0 border-t md:border-t-0 md:border-l border-white/[0.08] flex items-center justify-center md:min-w-35.5">
                             <Button
                               variant="tertiary"
                               size="sm"
@@ -849,7 +847,7 @@ function OpenApiPage() {
                       <div className="flex flex-col gap-2">
                         {/* Base URL panel */}
                         <Card className="p-2.25 rounded-2xl border border-border bg-gradient-to-b from-[rgba(15,23,42,0.015)] via-surface to-surface">
-                          <div className="flex flex-col gap-[7px]">
+                          <div className="flex flex-col gap-1.75">
                             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-1.5">
                               <div className="min-w-0 flex-1">
                                 <span className="text-sm font-bold text-foreground">原生 API Base URL</span>

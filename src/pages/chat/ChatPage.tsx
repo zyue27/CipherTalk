@@ -16,7 +16,6 @@ import { SharePosterModal } from './components/SharePosterModal'
 import { ContextMenuPortal } from './components/portals/ContextMenuPortal'
 import { EnlargeViewModal } from './components/portals/EnlargeViewModal'
 import { MessageInfoModal } from './components/portals/MessageInfoModal'
-import { TopToastPortal } from './components/portals/TopToastPortal'
 import { setLastIncrementalUpdateTime } from './components/messageBubble/mediaState'
 import { useContextMenuState } from './hooks/useContextMenuState'
 import { useSidebarResize } from './hooks/useSidebarResize'
@@ -151,7 +150,7 @@ function ChatPage(_props: ChatPageProps) {
   const [selectMode, setSelectMode] = useState(false)
   const [showPoster, setShowPoster] = useState(false)
   const [showEnlargeView, setShowEnlargeView] = useState<{ message: Message; content: string } | null>(null)
-  const { topToast, showTopToast } = useTopToast()
+  const { showTopToast } = useTopToast()
   const [showMessageInfo, setShowMessageInfo] = useState<Message | null>(null) // 消息信息弹窗
   const [selectedDate, setSelectedDate] = useState<string>('') // 选中的日期 (YYYY-MM-DD)
   const [isJumpingToDate, setIsJumpingToDate] = useState(false) // 正在跳转
@@ -1628,8 +1627,6 @@ function ChatPage(_props: ChatPageProps) {
         view={showEnlargeView}
         onClose={() => setShowEnlargeView(null)}
       />
-
-      <TopToastPortal toast={topToast} />
 
       <BatchTranscribeModal
         showConfirm={showBatchConfirm}

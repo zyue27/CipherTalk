@@ -4,6 +4,7 @@
  * 图片 / 表情包缓存查看。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from '@heroui/react'
 import { Download, Image as ImageIcon, RefreshCw, Smile, Trash2 } from 'lucide-react'
 import './DataManagementPage.scss'
 
@@ -35,7 +36,6 @@ function toFileUrl(filePath: string): string {
 
 function DataManagementPage() {
   const [activeTab, setActiveTab] = useState<TabType>('images')
-  const [message, setMessage] = useState<{ text: string; success: boolean } | null>(null)
   const [images, setImages] = useState<ImageFileInfo[]>([])
   const [emojis, setEmojis] = useState<ImageFileInfo[]>([])
   const [isMediaLoading, setIsMediaLoading] = useState(false)
@@ -48,8 +48,8 @@ function DataManagementPage() {
   const emojiGridRef = useRef<HTMLDivElement>(null)
 
   const showMessage = useCallback((text: string, success: boolean) => {
-    setMessage({ text, success })
-    setTimeout(() => setMessage(null), 2500)
+    if (success) toast.success(text, { timeout: 2500 })
+    else toast.danger(text, { timeout: 2500 })
   }, [])
 
   const loadMedia = useCallback(async (target: TabType) => {
@@ -276,10 +276,6 @@ function DataManagementPage() {
 
   return (
     <>
-      {message && (
-        <div className={`message-toast ${message.success ? 'success' : 'error'}`}>{message.text}</div>
-      )}
-
       {thumbDeleteConfirm.show && (
         <div className="delete-confirm-overlay" onClick={() => setThumbDeleteConfirm({ show: false, count: 0 })}>
           <div className="delete-confirm-card" onClick={(e) => e.stopPropagation()}>

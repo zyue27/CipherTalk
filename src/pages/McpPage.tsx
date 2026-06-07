@@ -20,7 +20,6 @@ import {
   TextArea,
   TextField,
   Tooltip,
-  Toast,
   toast,
   Typography,
 } from '@heroui/react'
@@ -537,7 +536,7 @@ function McpPage() {
                 value={jsonPasteText}
                 onChange={(e) => { setJsonPasteText(e.target.value); setJsonPasteError(null) }}
                 placeholder={'{\n  "mcpServers": {\n    "my-server": {\n      "command": "npx",\n      "args": ["-y", "some-mcp-server"]\n    }\n  }\n}'}
-                className="min-h-[200px]"
+                className="min-h-50"
               >
                 <Label>JSON 配置</Label>
                 <Description>
@@ -603,7 +602,7 @@ function McpPage() {
                   <TextArea value={serverForm.env}
                     onChange={(e) => setServerForm(f => ({ ...f, env: e.target.value }))}
                     placeholder={'API_KEY=...\nNODE_ENV=production'}
-                    className="min-h-[80px]">
+                    className="min-h-20">
                     <Label>环境变量</Label>
                     <Description>每行 KEY=VALUE。</Description>
                   </TextArea>
@@ -617,7 +616,7 @@ function McpPage() {
                   <TextArea value={serverForm.headers}
                     onChange={(e) => setServerForm(f => ({ ...f, headers: e.target.value }))}
                     placeholder={'Authorization=Bearer ...\nX-Api-Key=...'}
-                    className="min-h-[80px]">
+                    className="min-h-20">
                     <Label>请求头</Label>
                     <Description>每行 KEY=VALUE。</Description>
                   </TextArea>
@@ -666,7 +665,7 @@ function McpPage() {
                   <TextArea
                     readOnly
                     value={JSON.stringify(tool.inputSchema, null, 2)}
-                    className="min-h-[160px]"
+                    className="min-h-40"
                   >
                     <Label>输入 Schema</Label>
                   </TextArea>
@@ -841,7 +840,6 @@ function McpPage() {
 
   return (
     <>
-      <Toast.Provider placement="top" />
       <ScrollShadow hideScrollBar className="h-full min-h-0 pb-3" size={56}>
         <Tabs selectedKey={topTab} onSelectionChange={(key) => setTopTab(String(key) as TopTab)}>
           <Tabs.ListContainer>
@@ -897,13 +895,13 @@ function McpPage() {
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label>mcpServers 配置</Label>
-                  <ScrollShadow hideScrollBar className="w-full max-h-[260px]" size={36}>
+                  <ScrollShadow hideScrollBar className="w-full max-h-65" size={36}>
                     <TextArea
                       value={mcpServerJsonTemplate}
                       readOnly
                       fullWidth
                       rows={10}
-                      className="w-full min-h-[220px]"
+                      className="w-full min-h-55"
                     />
                   </ScrollShadow>
                   <Description>
@@ -1029,9 +1027,9 @@ function McpPage() {
                 {skillDialog?.mode === 'edit' ? (
                   <TextArea value={editingSkillContent}
                     onChange={(e) => setEditingSkillContent(e.target.value)}
-                    className="min-h-[400px]" />
+                    className="min-h-100" />
                 ) : (
-                  <TextArea value={skillContent} readOnly className="min-h-[400px]" />
+                  <TextArea value={skillContent} readOnly className="min-h-100" />
                 )}
               </Modal.Body>
               <Modal.Footer>

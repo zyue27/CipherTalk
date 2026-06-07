@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { Toast, toast } from '@heroui/react'
 
 import TitleBar from './components/TitleBar'
 import Sidebar from './components/Sidebar'
@@ -33,7 +34,7 @@ import * as configService from './services/config'
 import { initTldList } from './utils/linkify'
 import LockScreen from './pages/LockScreen'
 import { useAuthStore } from './stores/authStore'
-import { X, Shield, Loader2 } from 'lucide-react'
+import { Shield, Loader2 } from 'lucide-react'
 import { applyWindowChromeToDocument, syncWindowControlsOverlayToDocument } from './utils/windowChrome'
 import './App.css'
 
@@ -90,6 +91,8 @@ function App() {
   // 更新提示状态
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<UpdateDownloadProgressPayload | null>(null)
+  const updateToastIdRef = useRef<string | null>(null)
+  const suppressUpdateToastCloseRef = useRef(false)
 
   const formatSpeed = (bytesPerSecond: number) => {
     if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return '计算中'
@@ -300,13 +303,16 @@ function App() {
     }
   }, [])
 
-  const dismissUpdate = () => {
-    if (updateInfo?.forceUpdate || isUpdateDownloading) return
-    setUpdateInfo(null)
-  }
+  const closeUpdateToast = useCallback(() => {
+    if (!updateToastIdRef.current) return
+    suppressUpdateToastCloseRef.current = true
+    toast.close(updateToastIdRef.current)
+    updateToastIdRef.current = null
+  }, [])
 
-  const handleStartUpdate = () => {
+  const handleStartUpdate = useCallback(() => {
     if (isUpdateDownloading) return
+    closeUpdateToast()
     setUpdateInfo((current) => current ? {
       ...current,
       diagnostics: {
@@ -323,7 +329,37 @@ function App() {
       }
     } : current)
     window.electronAPI.app.downloadAndInstall()
-  }
+  }, [closeUpdateToast, isUpdateDownloading])
+
+  useEffect(() => {
+    if (!updateInfo || updateInfo.forceUpdate || isUpdateDownloading) {
+      closeUpdateToast()
+      return
+    }
+
+    if (updateToastIdRef.current) return
+
+    updateToastIdRef.current = toast.info('发现新版本', {
+      actionProps: {
+        children: '立即更新',
+        onPress: handleStartUpdate,
+        variant: 'secondary',
+      },
+      description: (
+        <>
+          <div>v{updateInfo.version} 已发布</div>
+          <div>更新源：{updateInfo.updateSource === 'github' ? 'GitHub Release' : '未知'}</div>
+        </>
+      ),
+      onClose: () => {
+        const suppressed = suppressUpdateToastCloseRef.current
+        suppressUpdateToastCloseRef.current = false
+        updateToastIdRef.current = null
+        if (!suppressed) setUpdateInfo(null)
+      },
+      timeout: 0,
+    })
+  }, [closeUpdateToast, handleStartUpdate, isUpdateDownloading, updateInfo])
 
   // 检查是否是独立聊天窗口
   const isChatWindow = location.pathname === '/chat-window'
@@ -592,27 +628,10 @@ function App() {
 
   return (
     <div className={`app-container${navLayout === 'sidebar' ? ' app-container--sidebar' : ''}`}>
+      <Toast.Provider placement="top" />
       {navLayout === 'sidebar' && <Sidebar />}
       <div className="app-shell">
       <TitleBar showTitle={false} />
-      {updateInfo && !updateInfo.forceUpdate && !isUpdateDownloading && (
-        <div className="update-toast">
-          <div className="update-toast-icon">🎉</div>
-          <div className="update-toast-content">
-            <div className="update-toast-title">发现新版本</div>
-            <div className="update-toast-version">v{updateInfo.version} 已发布</div>
-            <div className="update-toast-version">
-              更新源：{updateInfo.updateSource === 'github' ? 'GitHub Release' : '未知'}
-            </div>
-          </div>
-          <button className="update-toast-btn" onClick={handleStartUpdate}>
-            立即更新
-          </button>
-          <button className="update-toast-close" onClick={dismissUpdate}>
-            <X size={14} />
-          </button>
-        </div>
-      )}
       {updateInfo?.forceUpdate && (
         <div className="force-update-overlay">
           <div className="force-update-card">

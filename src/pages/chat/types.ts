@@ -20,8 +20,3 @@ export type BatchImageMessage = {
   imageDatName?: string
   createTime?: number
 }
-
-export type TopToastState = {
-  text: string
-  success: boolean
-}

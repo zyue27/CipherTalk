@@ -1024,7 +1024,7 @@ function SttTab({ active, showMessage }: SttTabProps) {
         <Button className="hidden" aria-hidden="true">打开确认框</Button>
         <AlertDialog.Backdrop>
           <AlertDialog.Container>
-            <AlertDialog.Dialog className="sm:max-w-[420px]">
+            <AlertDialog.Dialog className="sm:max-w-105">
               <AlertDialog.CloseTrigger />
               <AlertDialog.Header>
                 <AlertDialog.Icon status={confirmState.status} />

@@ -1,6 +1,6 @@
 ﻿import { lazy, Suspense, useState, useEffect, useRef } from 'react'
 import { useSearchParams, useLocation } from 'react-router-dom'
-import { Tabs, ScrollShadow, Skeleton, type Key as HeroKey } from '@heroui/react'
+import { Tabs, ScrollShadow, Skeleton, toast, type Key as HeroKey } from '@heroui/react'
 import { useAppStore } from '../../stores/appStore'
 import type { UpdateDownloadProgressPayload } from '../../types/electron'
 import type { AccountProfile } from '../../types/account'
@@ -13,7 +13,7 @@ import SecurityTab from './tabs/SecurityTab'
 import type { UpdateInfo } from './types'
 import { formatFileSize } from './utils'
 import { useSettingsStore } from './settingsStore'
-import { ConfirmDialog, FloatingSaveButton, Toast } from './ui'
+import { ConfirmDialog, FloatingSaveButton } from './ui'
 import {
   Eye, EyeOff, Key, FolderSearch, FolderOpen, Search,
   RotateCcw, Trash2, Plug, X, Check,
@@ -197,7 +197,6 @@ function SettingsLayout() {
   const [appVersion, setAppVersion] = useState('')
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [keyStatus, setKeyStatus] = useState('')
-  const [message, setMessage] = useState<{ text: string; success: boolean } | null>(null)
   const [showDecryptKey, setShowDecryptKey] = useState(false)
   const [showXorKey, setShowXorKey] = useState(false)
   const [closeToTray, setCloseToTray] = useState(true)
@@ -664,8 +663,8 @@ function SettingsLayout() {
   }
 
   const showMessage = (text: string, success: boolean) => {
-    setMessage({ text, success })
-    setTimeout(() => setMessage(null), 3000)
+    if (success) toast.success(text, { timeout: 3000 })
+    else toast.danger(text, { timeout: 3000 })
   }
 
   const handleClearImages = () => {
@@ -1354,8 +1353,6 @@ function SettingsLayout() {
 
   return (
     <div className="settings-page">
-      <Toast message={message} />
-
       {/* 清除确认对话框 */}
       {showClearDialog && (
         <ConfirmDialog

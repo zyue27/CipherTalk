@@ -375,28 +375,6 @@
   }
 }
 
-.message-toast {
-  position: fixed;
-  top: 60px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 24px;
-  border-radius: 9999px;
-  font-size: 14px;
-  z-index: 100;
-  animation: slideDown 0.3s ease;
-  
-  &.success {
-    background: var(--primary);
-    color: white;
-  }
-  
-  &.error {
-    background: var(--danger);
-    color: white;
-  }
-}
-
 // 媒体网格样式 - 直接显示在主区域
 .media-grid {
   display: grid;

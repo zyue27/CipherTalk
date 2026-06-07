@@ -1,16 +1,13 @@
-import { useCallback, useState } from 'react'
-import type { TopToastState } from '../types'
+import { useCallback } from 'react'
+import { toast } from '@heroui/react'
 
 export function useTopToast() {
-  const [topToast, setTopToast] = useState<TopToastState | null>(null)
-
   const showTopToast = useCallback((text: string, success = true) => {
-    setTopToast({ text, success })
-    setTimeout(() => setTopToast(null), 2000)
+    if (success) toast.success(text, { timeout: 2000 })
+    else toast.danger(text, { timeout: 2000 })
   }, [])
 
   return {
-    topToast,
     showTopToast
   }
 }
