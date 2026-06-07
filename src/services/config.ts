@@ -44,7 +44,8 @@ export const CONFIG_KEYS = {
   AUTH_PASSWORD_HASH: 'authPasswordHash',
   AUTH_PASSWORD_SALT: 'authPasswordSalt',
   CLOSE_TO_TRAY: 'closeToTray',
-  AI_PROVIDER_MODEL_CACHE: 'aiProviderModelCache'
+  AI_PROVIDER_MODEL_CACHE: 'aiProviderModelCache',
+  AI_ACTIVE_CONFIG_PRESET_ID: 'aiActiveConfigPresetId'
 } as const
 
 export type { AccountProfile, AccountProfileInput, AccountProfilePatch }
@@ -668,6 +669,15 @@ export async function updateAiConfigPreset(id: string, preset: Partial<Omit<AiCo
 export async function loadAiConfigPreset(id: string): Promise<AiConfigPreset | null> {
   const presets = await getAiConfigPresets()
   return presets.find(p => p.id === id) || null
+}
+
+export async function getActiveAiConfigPresetId(): Promise<string> {
+  const value = await config.get(CONFIG_KEYS.AI_ACTIVE_CONFIG_PRESET_ID)
+  return typeof value === 'string' ? value : ''
+}
+
+export async function setActiveAiConfigPresetId(id: string): Promise<void> {
+  await config.set(CONFIG_KEYS.AI_ACTIVE_CONFIG_PRESET_ID, id)
 }
 
 // --- 窗口关闭行为配置 ---

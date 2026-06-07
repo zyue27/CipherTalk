@@ -37,6 +37,7 @@
     "cli:test": "npm --prefix CipherTalk-CLI test -- --run",
     "cli:sync": "npm --prefix CipherTalk-CLI run sync:upstream",
     "test:agent-qa": "node scripts/test-agent-qa-independent.cjs",
+    "eval:retrieval": "node scripts/run-retrieval-evaluator.cjs",
     "preview": "vite preview",
     "electron:dev": "node scripts/clean-dist-electron.cjs && vite --mode electron",
     "electron:build": "npm run build",

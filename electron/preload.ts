@@ -108,6 +108,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getConfig: () => ipcRenderer.invoke('embedding:getConfig') as Promise<{ success: boolean; config?: unknown; error?: string }>,
     setConfig: (patch: unknown) => ipcRenderer.invoke('embedding:setConfig', patch) as Promise<{ success: boolean; config?: unknown; error?: string }>,
     test: (cfg: unknown) => ipcRenderer.invoke('embedding:test', cfg) as Promise<{ success: boolean; dimension?: number; error?: string }>,
+    sessionStatus: (sessionId: string) => ipcRenderer.invoke('embedding:sessionStatus', sessionId) as Promise<{ success: boolean; enabled?: boolean; count?: number; error?: string }>,
+    buildSession: (sessionId: string) => ipcRenderer.invoke('embedding:buildSession', sessionId) as Promise<{ success: boolean; indexed?: number; error?: string }>,
   },
 
   // 数据库操作

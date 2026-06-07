@@ -943,6 +943,8 @@ export interface ElectronAPI {
     getConfig: () => Promise<{ success: boolean; config?: EmbeddingConfig; error?: string }>
     setConfig: (patch: Partial<EmbeddingConfig>) => Promise<{ success: boolean; config?: EmbeddingConfig; error?: string }>
     test: (cfg: EmbeddingConfig) => Promise<{ success: boolean; dimension?: number; error?: string }>
+    sessionStatus: (sessionId: string) => Promise<{ success: boolean; enabled?: boolean; count?: number; error?: string }>
+    buildSession: (sessionId: string) => Promise<{ success: boolean; indexed?: number; error?: string }>
   }
   // AI 接入
   ai: {

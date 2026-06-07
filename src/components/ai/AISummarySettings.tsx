@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Alert,
   Button,
@@ -330,6 +331,7 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
   const [showCustomHelp, setShowCustomHelp] = useState(false)
   const [ollamaGuideContent, setOllamaGuideContent] = useState('')
   const [customGuideContent, setCustomGuideContent] = useState('')
+  const [settingsPagePortalHost, setSettingsPagePortalHost] = useState<HTMLElement | null>(null)
   const savePresetModalState = useOverlayState({
     isOpen: showSavePresetDialog,
     onOpenChange: setShowSavePresetDialog
@@ -397,6 +399,11 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
     void loadProviders()
     void loadAllProviderConfigs()
     void loadPresets()
+  }, [])
+
+  useEffect(() => {
+    const host = document.querySelector('.settings-page')
+    setSettingsPagePortalHost(host instanceof HTMLElement ? host : null)
   }, [])
 
   useEffect(() => {
@@ -537,6 +544,7 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
   const handleSelectProvider = async (providerId: string) => {
     const normalizedProviderId = normalizeProviderId(providerId)
     await persistProviderConfig()
+    await configService.setActiveAiConfigPresetId('')
     setField('aiProvider', normalizedProviderId)
     await configService.setAiProvider(normalizedProviderId)
   }
@@ -608,6 +616,7 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
   const handleSaveCurrentProvider = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     await persistProviderConfig()
+    await configService.setActiveAiConfigPresetId('')
     showMessage('AI 接入配置已保存', true)
   }
 
@@ -700,6 +709,7 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
     setCustomProtocol(preset.protocol || 'openai-responses')
     setBaseURL(preset.baseURL || '')
     await persistProviderConfig(presetProvider, preset.apiKey, preset.model, preset.baseURL || '', preset.protocol || 'openai-responses')
+    await configService.setActiveAiConfigPresetId(preset.id)
     showMessage('配置预设已加载', true)
   }
 
@@ -720,6 +730,9 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
 
   const handleDeletePreset = async (presetId: string) => {
     await configService.deleteAiConfigPreset(presetId)
+    if (await configService.getActiveAiConfigPresetId() === presetId) {
+      await configService.setActiveAiConfigPresetId('')
+    }
     await loadPresets()
     showMessage('配置预设已删除', true)
   }
@@ -1000,6 +1013,87 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
         {configMode === 'vector' && <EmbeddingTab />}
       </div>
 
+      {settingsPagePortalHost && createPortal(
+        <Drawer state={presetDrawerState}>
+          {showPresetDrawer && (
+            <div className="absolute inset-0 z-[160] overflow-hidden">
+              <button
+                aria-label="关闭预设管理"
+                className="absolute inset-0 bg-backdrop/40 backdrop-blur-sm"
+                onClick={() => setShowPresetDrawer(false)}
+                type="button"
+              />
+              <div className="absolute inset-y-0 right-0 flex w-full justify-end">
+                <Drawer.Dialog aria-label="配置预设管理" className="relative h-full w-full max-w-md rounded-l-lg border border-border/70 bg-overlay p-0 shadow-overlay">
+                  <Drawer.Header className="border-border/60 border-b px-5 py-4">
+                    <Drawer.Heading className="text-base font-semibold text-foreground">配置预设管理</Drawer.Heading>
+                    <CloseButton aria-label="关闭预设管理" className="absolute right-4 top-4" onPress={() => setShowPresetDrawer(false)} />
+                  </Drawer.Header>
+                  <Drawer.Body className="p-5">
+                    {presets.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center gap-1 py-16 text-center">
+                        <Typography.Paragraph size="sm">暂无配置预设</Typography.Paragraph>
+                        <Typography.Paragraph size="xs" color="muted">保存当前服务商配置后可快速切换。</Typography.Paragraph>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {presets.map(preset => {
+                          const presetProviderInfo = providers.find(item => item.id === normalizeProviderId(preset.provider))
+                          return (
+                          <Card key={preset.id} variant="secondary" className="flex items-center justify-between gap-3 px-4 py-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <AIProviderLogo
+                                providerId={preset.provider}
+                                logo={presetProviderInfo?.logo}
+                                alt={presetProviderInfo?.displayName || preset.provider}
+                                className="shrink-0"
+                                size={22}
+                              />
+                              <div className="min-w-0">
+                                <Typography.Paragraph size="sm" weight="medium" truncate>{preset.name}</Typography.Paragraph>
+                                <Typography.Paragraph size="xs" color="muted" truncate>{presetProviderInfo?.displayName || preset.provider} · {preset.model}</Typography.Paragraph>
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <Button
+                                type="button"
+                                variant="primary"
+                                size="sm"
+                                onPress={() => { void handleLoadPreset(preset.id); setShowPresetDrawer(false) }}
+                              >
+                                加载
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onPress={() => handleEditPreset(preset)}
+                              >
+                                编辑
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="danger-soft"
+                                size="sm"
+                                onPress={() => void handleDeletePreset(preset.id)}
+                              >
+                                删除
+                              </Button>
+                            </div>
+                          </Card>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </Drawer.Body>
+                </Drawer.Dialog>
+              </div>
+            </div>
+          )}
+        </Drawer>,
+        settingsPagePortalHost
+      )}
+
       {showOllamaHelp && (
         <GuideModal title="Ollama 本地 AI 使用指南" html={ollamaGuideContent} onClose={() => setShowOllamaHelp(false)} />
       )}
@@ -1178,66 +1272,6 @@ function AISummarySettings({ showMessage }: AISummarySettingsProps) {
             </Modal.Container>
           </Modal.Backdrop>
         </Modal>
-      )}
-
-      {showPresetDrawer && (
-        <Drawer state={presetDrawerState}>
-          <Drawer.Backdrop variant="blur">
-            <Drawer.Content placement="right" className="w-full max-w-md">
-              <Drawer.Dialog>
-                <Drawer.Header className="items-center justify-between">
-                  <Drawer.Heading className="text-base font-semibold text-foreground">配置预设管理</Drawer.Heading>
-                  <CloseButton aria-label="关闭预设管理" onPress={() => setShowPresetDrawer(false)} />
-                </Drawer.Header>
-                <Drawer.Body className="p-5">
-                  {presets.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center gap-1 py-16 text-center">
-                      <Typography.Paragraph size="sm">暂无配置预设</Typography.Paragraph>
-                      <Typography.Paragraph size="xs" color="muted">保存当前服务商配置后可快速切换。</Typography.Paragraph>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {presets.map(preset => (
-                        <Card key={preset.id} variant="secondary" className="flex items-center justify-between gap-3 px-4 py-3">
-                          <div className="min-w-0">
-                            <Typography.Paragraph size="sm" weight="medium" truncate>{preset.name}</Typography.Paragraph>
-                            <Typography.Paragraph size="xs" color="muted" truncate>{preset.provider} · {preset.model}</Typography.Paragraph>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            <Button
-                              type="button"
-                              variant="primary"
-                              size="sm"
-                              onPress={() => { void handleLoadPreset(preset.id); setShowPresetDrawer(false) }}
-                            >
-                              加载
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onPress={() => handleEditPreset(preset)}
-                            >
-                              编辑
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="danger-soft"
-                              size="sm"
-                              onPress={() => void handleDeletePreset(preset.id)}
-                            >
-                              删除
-                            </Button>
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </Drawer.Body>
-              </Drawer.Dialog>
-            </Drawer.Content>
-          </Drawer.Backdrop>
-        </Drawer>
       )}
     </div>
   )

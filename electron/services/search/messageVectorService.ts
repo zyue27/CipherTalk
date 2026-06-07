@@ -182,6 +182,11 @@ class MessageVectorService {
     return (db.prepare('SELECT COUNT(*) AS c FROM message_chunks WHERE session_id = ?').get(sessionId) as { c: number }).c
   }
 
+  /** 某会话已建的片段向量数（0 = 未建）。供 UI 显示向量化状态。 */
+  getSessionChunkCount(sessionId: string): number {
+    return this.countChunks(this.getDb(), sessionId)
+  }
+
   /**
    * 确保某会话的片段向量已就绪（懒构建 + 增量）。返回该会话已存片段数。
    */

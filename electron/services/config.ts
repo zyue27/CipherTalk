@@ -102,6 +102,7 @@ interface ConfigSchema {
 
   // AI 相关
   aiCurrentProvider: string  // 当前选中的提供商
+  aiActiveConfigPresetId: string
   aiProviderConfigs: {  // 每个提供商的独立配置
     [providerId: string]: {
       apiKey: string
@@ -187,6 +188,7 @@ const defaults: ConfigSchema = {
   closeToTray: true,  // 默认最小化到托盘
   // AI 默认配置
   aiCurrentProvider: 'deepseek',
+  aiActiveConfigPresetId: '',
   aiProviderConfigs: {},  // 空对象，用户配置后填充
   aiProviderModelCache: {},
   embeddingConfig: {

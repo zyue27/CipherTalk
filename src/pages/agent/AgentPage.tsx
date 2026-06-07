@@ -6,9 +6,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 import { useChat } from '@ai-sdk/react'
 import { isToolUIPart, type ChatStatus, type UIMessage } from 'ai'
 import { Button as HeroButton, Modal, Surface, Table } from '@heroui/react'
-import { AtSign, BarChart3, Braces, Brain, CheckIcon, Clock3, Copy, FileText, History, Image as ImageIcon, Info, PenLine, Quote, Search, SquarePen, Trash2, Users, Volume2, Wrench, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { useChatStore } from '@/stores/chatStore'
+import { AtSign, BarChart3, Braces, Brain, CheckIcon, Clock3, Copy, FileText, History, Image as ImageIcon, Info, PenLine, Quote, Search, SquarePen, Trash2, Users, Volume2, Wrench, X, Sparkles } from 'lucide-react'
 import { Sources, SourcesContent, SourcesTrigger } from '@/components/ai-elements/sources'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import {
@@ -172,6 +170,46 @@ function MessageChainOfThought({ active, children }: { active: boolean; children
 function formatToolName(toolName: string) {
   if (toolName === 'delegate_analysis') return '委托子助手'
   return toolName.replace(/[_-]+/g, ' ')
+}
+
+/** @ 单个会话且其未建语义索引时，提示建立（可建/可跳过，跳过后本会话不再提示）。 */
+function SessionVectorizePrompt({ session, dismissed }: { session: { username: string; displayName?: string }; dismissed: { current: Set<string> } }) {
+  const [status, setStatus] = useState<{ enabled: boolean; count: number } | null>(null)
+  const [building, setBuilding] = useState(false)
+  const [hidden, setHidden] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setHidden(dismissed.current.has(session.username))
+    void window.electronAPI.embedding.sessionStatus(session.username).then((r) => {
+      if (!cancelled && r.success) setStatus({ enabled: !!r.enabled, count: r.count ?? 0 })
+    })
+    return () => { cancelled = true }
+  }, [session.username, dismissed])
+
+  if (hidden || !status || !status.enabled || status.count > 0) return null
+
+  const build = async () => {
+    setBuilding(true)
+    try {
+      const r = await window.electronAPI.embedding.buildSession(session.username)
+      if (r.success) setStatus({ enabled: true, count: r.indexed ?? 0 })
+    } finally {
+      setBuilding(false)
+    }
+  }
+  const skip = () => { dismissed.current.add(session.username); setHidden(true) }
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+      <Sparkles className="size-4 shrink-0" />
+      <span className="min-w-0 flex-1">为「{session.displayName || session.username}」建立语义索引，AI 可按语义检索这段聊天。</span>
+      <Button size="sm" variant="default" onClick={() => void build()} disabled={building}>
+        {building ? '建立中…' : '建立'}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={skip} disabled={building}>跳过</Button>
+    </div>
+  )
 }
 
 function renderChainLabel(label: string, active: boolean) {
@@ -531,11 +569,9 @@ function extractSources(parts: any[]): SourceItem[] {
 function MessageSources({
   items,
   nameOf,
-  onOpen,
 }: {
   items: SourceItem[]
   nameOf: (sessionId: string) => string
-  onOpen: (sessionId: string) => void
 }) {
   if (items.length === 0) return null
   return (
@@ -548,22 +584,17 @@ function MessageSources({
         {items.map((it, index) => (
           <HoverCard closeDelay={80} key={it.id} openDelay={120}>
             <HoverCardTrigger asChild>
-              <button
-                className="inline-flex max-w-40 items-center gap-1 rounded-full border border-border/60 bg-card/60 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-                onClick={() => onOpen(it.sessionId)}
-                type="button"
-              >
+              <span className="inline-flex max-w-40 items-center gap-1 rounded-full border border-border/60 bg-card/60 px-2 py-0.5 text-[11px] text-muted-foreground">
                 <Quote className="size-3 shrink-0 opacity-70" />
                 <span className="shrink-0">{index + 1}</span>
                 <span className="truncate">{nameOf(it.sessionId)}</span>
-              </button>
+              </span>
             </HoverCardTrigger>
             <HoverCardContent align="start" className="w-80 text-xs" side="top">
               <div className="mb-1 font-medium text-[11px] text-muted-foreground">
                 {[nameOf(it.sessionId), it.sender, it.time].filter(Boolean).join(' · ')}
               </div>
               <div className="max-h-40 overflow-auto whitespace-pre-wrap text-foreground">{it.text}</div>
-              <div className="mt-1.5 text-[10px] text-muted-foreground">点击打开该会话</div>
             </HoverCardContent>
           </HoverCard>
         ))}
@@ -600,6 +631,38 @@ function modelConfigProvider(config: AgentModelConfig | null): string {
 
 function modelConfigId(config: AgentModelConfig | null): string {
   return String(config?.model || '')
+}
+
+function normalizeConfigText(value?: string) {
+  return String(value || '').trim()
+}
+
+function normalizeConfigBaseURL(value?: string) {
+  return normalizeConfigText(value).replace(/\/+$/, '')
+}
+
+function presetMatchesCurrentConfig(
+  preset: configService.AiConfigPreset,
+  provider: string,
+  currentConfig: configService.AiProviderConfig | null,
+) {
+  if (!currentConfig) return false
+  return preset.provider === provider
+    && normalizeConfigText(preset.apiKey) === normalizeConfigText(currentConfig.apiKey)
+    && normalizeConfigText(preset.model) === normalizeConfigText(currentConfig.model)
+    && normalizeConfigBaseURL(preset.baseURL) === normalizeConfigBaseURL(currentConfig.baseURL)
+    && normalizeConfigText(preset.protocol) === normalizeConfigText(currentConfig.protocol)
+}
+
+function resolveDefaultPresetId(
+  presets: configService.AiConfigPreset[],
+  provider: string,
+  currentConfig: configService.AiProviderConfig | null,
+  activePresetId: string,
+) {
+  const activePreset = presets.find((preset) => preset.id === activePresetId)
+  if (activePreset && presetMatchesCurrentConfig(activePreset, provider, currentConfig)) return activePreset.id
+  return presets.find((preset) => presetMatchesCurrentConfig(preset, provider, currentConfig))?.id || 'current'
 }
 
 type AgentUsage = {
@@ -935,6 +998,7 @@ export default function AgentPage() {
   const [mentionHasMore, setMentionHasMore] = useState(true)
   const [mentionLoading, setMentionLoading] = useState(false)
   const [mentions, setMentions] = useState<MentionTarget[]>([])
+  const [sourceNameById, setSourceNameById] = useState<Record<string, string>>({})
   const mentionOffsetRef = useRef(0)
   const mentionLoadingRef = useRef(false)
   const mentionHasMoreRef = useRef(true)
@@ -948,6 +1012,8 @@ export default function AgentPage() {
     (username: string) => setMentions((prev) => prev.filter((x) => x.username !== username)),
     []
   )
+  // 已"跳过"向量化提示的会话（本次运行内不再提示）
+  const dismissedVecRef = useRef(new Set<string>())
   // 单个 @ → 锁定该会话 scope；多个/零个 → 全局（多个走消息注入，见 handleSubmit）
   const scopeRef = useRef<AgentScope>({ kind: 'global' })
   const submitScopeRef = useRef<AgentScope | null>(null)
@@ -1268,21 +1334,25 @@ export default function AgentPage() {
 
   useEffect(() => {
     let cancelled = false
-    void configService.getAiConfigPresets().then((items) => {
+    void (async () => {
+      const [items, provider, activePresetId] = await Promise.all([
+        configService.getAiConfigPresets(),
+        configService.getAiProvider(),
+        configService.getActiveAiConfigPresetId(),
+      ])
+      const currentConfig = await configService.getAiProviderConfig(provider)
       if (cancelled) return
       setPresets(items)
+      setCurrentProviderId(provider)
+      setCurrentModelId(currentConfig?.model || '')
+      const defaultPresetId = resolveDefaultPresetId(items, provider, currentConfig, activePresetId)
       setSelectedPresetId((current) => {
         if (current !== 'current' && items.some((item) => item.id === current)) return current
-        return items[0]?.id || 'current'
+        return defaultPresetId
       })
-    })
+    })()
     void getAIProviders().then((items) => {
       if (!cancelled) setProvidersInfo(items)
-    })
-    void Promise.all([configService.getAiProvider(), configService.getAiModel()]).then(([provider, model]) => {
-      if (cancelled) return
-      setCurrentProviderId(provider)
-      setCurrentModelId(model)
     })
     void window.electronAPI.agent.listConversations().then((result) => {
       if (cancelled || !result.success || !Array.isArray(result.conversations)) return
@@ -1360,19 +1430,54 @@ export default function AgentPage() {
     void persistConversationMessages(conversationId, messages, activeScopeRef.current)
   }, [busy, conversationId, messages, persistConversationMessages])
 
-  // 出处：会话名解析 + 点击打开该会话
-  const navigate = useNavigate()
-  const setCurrentSession = useChatStore((s) => s.setCurrentSession)
+  // 出处：会话名解析
   const sessionNameMap = useMemo(() => new Map(sessions.map((s) => [s.username, s.displayName])), [sessions])
-  const sessionNameOf = useCallback((sessionId: string) => sessionNameMap.get(sessionId) || sessionId, [sessionNameMap])
-  const openInChat = useCallback(
-    (sessionId: string) => {
-      if (!sessionId) return
-      setCurrentSession(sessionId)
-      navigate('/home')
-    },
-    [navigate, setCurrentSession]
-  )
+  const sourceSessionIdKey = useMemo(() => {
+    const ids = new Set<string>()
+    for (const message of messages) {
+      if (message.role !== 'assistant') continue
+      for (const source of extractSources(message.parts)) ids.add(source.sessionId)
+    }
+    return Array.from(ids).sort().join('\n')
+  }, [messages])
+  useEffect(() => {
+    const ids = sourceSessionIdKey.split('\n').filter(Boolean)
+    const missing = ids.filter((id) => !sessionNameMap.has(id) && !sourceNameById[id])
+    if (missing.length === 0) return
+
+    let cancelled = false
+    void (async () => {
+      try {
+        await window.electronAPI.chat.connect?.()
+      } catch {
+        // 未连接时仍尝试走头像/联系人查询兜底。
+      }
+      return Promise.all(
+        missing.map(async (id) => {
+          try {
+            const result = await window.electronAPI.chat.getContactAvatar(id)
+            return [id, result?.displayName || id] as const
+          } catch {
+            return [id, id] as const
+          }
+        })
+      )
+    })().then((entries) => {
+      if (cancelled) return
+      setSourceNameById((prev) => {
+        const next = { ...prev }
+        for (const [id, displayName] of entries) next[id] = displayName
+        return next
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [sessionNameMap, sourceNameById, sourceSessionIdKey])
+  const sessionNameOf = useCallback((sessionId: string) => (
+    sessionNameMap.get(sessionId) || sourceNameById[sessionId] || sessionId
+  ), [sessionNameMap, sourceNameById])
 
   return (
     <Surface
@@ -1555,7 +1660,7 @@ export default function AgentPage() {
                       return null
                     })}
                     {message.role === 'assistant' && (
-                      <MessageSources items={extractSources(message.parts)} nameOf={sessionNameOf} onOpen={openInChat} />
+                      <MessageSources items={extractSources(message.parts)} nameOf={sessionNameOf} />
                     )}
                     {message.role === 'assistant' && (
                       <MessageUsageStats
@@ -1603,6 +1708,9 @@ export default function AgentPage() {
                 onRemove={removeMention}
                 sessions={sessions}
               />
+              {mentions.length === 1 && (
+                <SessionVectorizePrompt session={mentions[0]} dismissed={dismissedVecRef} />
+              )}
               <PromptInputAttachments className="p-0">
                 {(attachment) => <PromptInputAttachment data={attachment} />}
               </PromptInputAttachments>

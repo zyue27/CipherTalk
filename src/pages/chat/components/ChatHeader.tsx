@@ -1,4 +1,5 @@
-import { Aperture, Image as ImageIcon, Loader2, Mic, RefreshCw } from 'lucide-react'
+import { Aperture, Image as ImageIcon, Loader2, Mic, RefreshCw, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Button, Tooltip } from '@heroui/react'
 import { DateJumpPicker } from './DateJumpPicker'
 import type { ChatSession } from '../../../types/models'
@@ -47,6 +48,50 @@ export function ChatHeader({
   batchDecryptProgress,
   onBatchDecrypt
 }: ChatHeaderProps) {
+  // 向量化（语义索引）状态：null=未知/未启用嵌入，count=已建片段数
+  const [vecBuilding, setVecBuilding] = useState(false)
+  const [vecStatus, setVecStatus] = useState<{ enabled: boolean; count: number } | null>(null)
+  const [vecError, setVecError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setVecError(null)
+    if (!currentSessionId) {
+      setVecStatus(null)
+      return
+    }
+    void window.electronAPI.embedding.sessionStatus(currentSessionId).then((res) => {
+      if (!cancelled && res.success) setVecStatus({ enabled: !!res.enabled, count: res.count ?? 0 })
+    })
+    return () => { cancelled = true }
+  }, [currentSessionId])
+
+  const handleVectorize = async () => {
+    if (!currentSessionId || vecBuilding) return
+    setVecBuilding(true)
+    setVecError(null)
+    try {
+      const res = await window.electronAPI.embedding.buildSession(currentSessionId)
+      if (res.success) setVecStatus({ enabled: true, count: res.indexed ?? 0 })
+      else setVecError(res.error || '向量化失败')
+    } catch (e) {
+      setVecError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setVecBuilding(false)
+    }
+  }
+
+  const vecDisabled = !currentSessionId || vecBuilding || (vecStatus !== null && !vecStatus.enabled)
+  const vecTooltip = vecBuilding
+    ? '正在向量化…'
+    : vecError
+      ? `向量化失败：${vecError}`
+      : vecStatus && !vecStatus.enabled
+        ? '未启用嵌入模型（设置 → 嵌入）'
+        : vecStatus && vecStatus.count > 0
+          ? `已向量化 ${vecStatus.count} 段 · 点击更新`
+          : '为此会话建立语义索引'
+
   return (
     <div className="message-header">
       <SessionAvatar session={currentSession} size={40} />
@@ -78,6 +123,24 @@ export function ChatHeader({
             </Button>
           </Tooltip.Trigger>
           <Tooltip.Content>刷新消息</Tooltip.Content>
+        </Tooltip>
+
+        <Tooltip delay={0}>
+          <Tooltip.Trigger>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              aria-label="向量化（语义索引）"
+              onPress={handleVectorize}
+              isDisabled={vecDisabled}
+            >
+              {vecBuilding
+                ? <Loader2 size={18} className="animate-spin" />
+                : <Sparkles size={18} className={vecStatus && vecStatus.count > 0 ? 'text-primary' : ''} />}
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>{vecTooltip}</Tooltip.Content>
         </Tooltip>
 
         {!isGroupChat(currentSession.username) && (

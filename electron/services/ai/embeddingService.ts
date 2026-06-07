@@ -51,18 +51,24 @@ function buildEmbeddingModel(cfg: EmbeddingConfig) {
   return createOpenAICompatible({ name: 'embedding', apiKey: cfg.apiKey, baseURL: cfg.baseURL, fetch }).textEmbeddingModel(cfg.model)
 }
 
+/** dimension>0 时要求接口按该维度输出（需模型支持）；两种 provider key 都带，互不干扰。0 = 不指定。 */
+function embeddingProviderOptions(cfg: EmbeddingConfig) {
+  if (!cfg.dimension || cfg.dimension <= 0) return undefined
+  return { openai: { dimensions: cfg.dimension }, openaiCompatible: { dimensions: cfg.dimension } }
+}
+
 /** 批量嵌入（建索引用）。 */
 export async function embedTexts(texts: string[], cfg?: EmbeddingConfig): Promise<number[][]> {
   if (texts.length === 0) return []
-  const model = buildEmbeddingModel(cfg || getEmbeddingConfig())
-  const { embeddings } = await embedMany({ model, values: texts })
+  const c = cfg || getEmbeddingConfig()
+  const { embeddings } = await embedMany({ model: buildEmbeddingModel(c), values: texts, providerOptions: embeddingProviderOptions(c) })
   return embeddings
 }
 
 /** 单条嵌入（查询用）。 */
 export async function embedQuery(text: string, cfg?: EmbeddingConfig): Promise<number[]> {
-  const model = buildEmbeddingModel(cfg || getEmbeddingConfig())
-  const { embedding } = await embed({ model, value: text })
+  const c = cfg || getEmbeddingConfig()
+  const { embedding } = await embed({ model: buildEmbeddingModel(c), value: text, providerOptions: embeddingProviderOptions(c) })
   return embedding
 }
 

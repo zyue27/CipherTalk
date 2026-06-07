@@ -1,6 +1,6 @@
 ﻿import { lazy, Suspense, useState, useEffect, useRef } from 'react'
 import { useSearchParams, useLocation } from 'react-router-dom'
-import { Tabs, ScrollShadow, type Key as HeroKey } from '@heroui/react'
+import { Tabs, ScrollShadow, Skeleton, type Key as HeroKey } from '@heroui/react'
 import { useAppStore } from '../../stores/appStore'
 import type { UpdateDownloadProgressPayload } from '../../types/electron'
 import type { AccountProfile } from '../../types/account'
@@ -82,6 +82,65 @@ const STT_ONLINE_DEFAULTS = {
     model: ''
   }
 } as const
+
+function AISettingsSkeleton() {
+  return (
+    <div className="tab-content" aria-busy="true" aria-label="AI 接入配置占位">
+      <div className="mx-auto w-full max-w-290 space-y-6 px-2">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 space-y-2">
+            <Skeleton className="h-6 w-36 rounded-lg" />
+            <Skeleton className="h-4 w-72 max-w-full rounded-lg" />
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <Skeleton className="h-8 w-24 rounded-lg" />
+            <Skeleton className="h-8 w-24 rounded-lg" />
+            <Skeleton className="h-9 w-36 rounded-lg" />
+          </div>
+        </div>
+
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_330px]">
+          <div className="space-y-5 rounded-lg border border-border bg-surface p-5">
+            <div className="flex items-start justify-between gap-4">
+              <Skeleton className="h-5 w-24 rounded-lg" />
+              <Skeleton className="size-7 rounded-lg" />
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-10 w-full rounded-lg" />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+              <Skeleton className="h-10 w-full rounded-lg" />
+              <Skeleton className="h-10 w-full rounded-lg" />
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Skeleton className="h-9 w-24 rounded-lg" />
+              <Skeleton className="h-9 w-24 rounded-lg" />
+              <Skeleton className="h-9 w-32 rounded-lg" />
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="space-y-4 rounded-lg border border-border bg-surface p-5">
+              <Skeleton className="h-5 w-28 rounded-lg" />
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-full rounded-lg" />
+                <Skeleton className="h-4 w-5/6 rounded-lg" />
+                <Skeleton className="h-4 w-2/3 rounded-lg" />
+              </div>
+            </div>
+            <div className="space-y-4 rounded-lg border border-border bg-surface p-5">
+              <Skeleton className="h-5 w-24 rounded-lg" />
+              <Skeleton className="h-16 w-full rounded-lg" />
+              <Skeleton className="h-9 w-full rounded-lg" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function SettingsLayout() {
   const [searchParams] = useSearchParams()
@@ -1364,7 +1423,7 @@ function SettingsLayout() {
           </Suspense>
         )}
         {activeTab === 'ai' && (
-          <Suspense fallback={<div className="tab-content">加载中...</div>}>
+          <Suspense fallback={<AISettingsSkeleton />}>
             <AISummarySettings showMessage={showMessage} />
           </Suspense>
         )}

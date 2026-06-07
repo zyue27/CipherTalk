@@ -488,7 +488,6 @@
 .chat-page.standalone .message-area .message-list {
   flex: 1;
   background-color: var(--bg-secondary);
-  padding: 20px 24px;
   position: relative;
   overflow-y: auto;
 }

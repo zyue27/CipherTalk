@@ -31,7 +31,11 @@ function normalizeProviderId(providerId?: string) {
   if (!providerId) return ''
   if (providerId === 'custom-responses') return 'openai'
   if (providerId === 'openai-compatible') return 'custom'
-  if (providerId === 'siliconflow') return 'siliconcloud'
+  if (providerId === 'google') return 'gemini'
+  if (providerId === 'alibaba-cn') return 'qwen'
+  if (providerId === 'moonshotai-cn') return 'kimi'
+  if (providerId === 'siliconflow' || providerId === 'siliconflow-cn') return 'siliconcloud'
+  if (providerId === 'tencent-tokenhub') return 'tencent'
   if (providerId === 'xiaomi') return 'xiaomimimo'
   return providerId
 }

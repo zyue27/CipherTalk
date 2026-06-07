@@ -1,13 +1,12 @@
 /**
  * 嵌入模型设置（语义/向量检索用，独立于聊天模型）。
- * UI 与"AI 接入"的聊天模型配置一致：服务商下拉（带 logo）+ baseURL + Key + 模型 + 测试。
- * 自带 IPC（embedding:getConfig/setConfig/test）。嵌入模型不在 catalog 列表里，故型号为手填。
+ * 只保留必要项：接口 URL、API Key、模型、向量维度 + 启用开关 + 测试/保存。
+ * 协议固定 openai-compatible（对 OpenAI 官方也通），不再做服务商下拉。
+ * 自带 IPC（embedding:getConfig/setConfig/test）。
  */
-import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Description, InputGroup, Label, ListBox, Select, Switch, TextField } from '@heroui/react'
+import { useEffect, useState } from 'react'
+import { Button, Card, Description, InputGroup, Label, Switch, TextField } from '@heroui/react'
 import { AlertCircle, CheckCircle, Plug } from 'lucide-react'
-import AIProviderLogo from '@/components/ai/AIProviderLogo'
-import { getAIProviders, type AIProviderInfo } from '@/types/ai'
 import type { EmbeddingConfig } from '@/types/electron'
 
 const DEFAULT_CFG: EmbeddingConfig = {
@@ -20,18 +19,8 @@ const DEFAULT_CFG: EmbeddingConfig = {
   dimension: 0,
 }
 
-function ProviderOptionContent({ info }: { info: AIProviderInfo }) {
-  return (
-    <span className="flex min-w-0 items-center gap-2.5">
-      <AIProviderLogo providerId={info.id} logo={info.logo} alt={info.displayName} className="shrink-0" size={18} />
-      <strong className="truncate font-medium text-foreground text-sm">{info.displayName}</strong>
-    </span>
-  )
-}
-
 export default function EmbeddingTab() {
   const [cfg, setCfg] = useState<EmbeddingConfig>(DEFAULT_CFG)
-  const [providers, setProviders] = useState<AIProviderInfo[]>([])
   const [loaded, setLoaded] = useState(false)
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -39,27 +28,12 @@ export default function EmbeddingTab() {
 
   useEffect(() => {
     void window.electronAPI.embedding.getConfig().then((res) => {
-      if (res.success && res.config) setCfg({ ...DEFAULT_CFG, ...res.config })
+      if (res.success && res.config) setCfg({ ...DEFAULT_CFG, ...res.config, protocol: 'openai-compatible' })
       setLoaded(true)
     })
-    void getAIProviders().then(setProviders)
   }, [])
 
   const patch = (p: Partial<EmbeddingConfig>) => setCfg((c) => ({ ...c, ...p }))
-  const currentProvider = useMemo(() => providers.find((p) => p.id === cfg.provider), [providers, cfg.provider])
-
-  const handleSelectProvider = (providerId: string) => {
-    const p = providers.find((x) => x.id === providerId)
-    if (!p) {
-      patch({ provider: providerId })
-      return
-    }
-    patch({
-      provider: providerId,
-      protocol: p.protocol === 'openai-responses' ? 'openai' : 'openai-compatible',
-      baseURL: p.allowCustomBaseURL ? cfg.baseURL : p.baseURL || cfg.baseURL,
-    })
-  }
 
   const handleTest = async () => {
     setTesting(true)
@@ -67,8 +41,13 @@ export default function EmbeddingTab() {
     try {
       const res = await window.electronAPI.embedding.test(cfg)
       if (res.success) {
-        patch({ dimension: res.dimension || 0 })
-        setStatus({ ok: true, text: `连接成功，向量维度 ${res.dimension}` })
+        // 不自动回填维度：避免"测试没发 dimensions、实际发了"不一致。仅提示探测到的维度。
+        setStatus({
+          ok: true,
+          text: cfg.dimension > 0
+            ? `连接成功，按设定维度输出 ${res.dimension}`
+            : `连接成功，模型默认维度 ${res.dimension}（如需固定维度，在上方"向量维度"填写）`,
+        })
       } else {
         setStatus({ ok: false, text: res.error || '测试失败' })
       }
@@ -99,39 +78,17 @@ export default function EmbeddingTab() {
             供 AI 助手做语义/向量检索，独立于聊天模型。需 OpenAI 兼容的嵌入接口（如硅基流动 bge-m3、通义、智谱、OpenAI）。
           </Card.Description>
         </div>
-        <Switch isSelected={cfg.enabled} onChange={(v) => patch({ enabled: v })}>
-          启用
+        <Switch
+          aria-label={cfg.enabled ? '关闭语义检索嵌入模型' : '启用语义检索嵌入模型'}
+          isSelected={cfg.enabled}
+          onChange={(v) => patch({ enabled: v })}
+        >
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
         </Switch>
       </Card.Header>
       <Card.Content className="space-y-5">
-        <Select
-          fullWidth
-          onSelectionChange={(key) => key != null && handleSelectProvider(String(key))}
-          placeholder="请选择服务商"
-          selectedKey={cfg.provider || null}
-          variant="secondary"
-        >
-          <Label>服务商</Label>
-          <Select.Trigger>
-            <Select.Value>
-              {({ defaultChildren, isPlaceholder }) =>
-                isPlaceholder || !currentProvider ? defaultChildren : <ProviderOptionContent info={currentProvider} />
-              }
-            </Select.Value>
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox className="max-h-72 overflow-auto">
-              {providers.map((p) => (
-                <ListBox.Item className="shrink-0" id={p.id} key={p.id} textValue={p.displayName}>
-                  <ProviderOptionContent info={p} />
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              ))}
-            </ListBox>
-          </Select.Popover>
-        </Select>
-
         <TextField fullWidth onChange={(v) => patch({ baseURL: v })} value={cfg.baseURL}>
           <Label>接口 URL（baseURL）</Label>
           <InputGroup fullWidth variant="secondary">
@@ -152,8 +109,20 @@ export default function EmbeddingTab() {
           <InputGroup fullWidth variant="secondary">
             <InputGroup.Input placeholder="BAAI/bge-m3" />
           </InputGroup>
+          <Description>嵌入型号需手填（不在聊天模型列表里）。</Description>
+        </TextField>
+
+        <TextField
+          fullWidth
+          onChange={(v) => patch({ dimension: Math.max(0, Math.floor(Number(v) || 0)) })}
+          value={cfg.dimension ? String(cfg.dimension) : ''}
+        >
+          <Label>向量维度</Label>
+          <InputGroup fullWidth variant="secondary">
+            <InputGroup.Input placeholder="留空 = 自动（用模型默认维度）" inputMode="numeric" />
+          </InputGroup>
           <Description>
-            {cfg.dimension > 0 ? `已探测维度：${cfg.dimension}` : '嵌入型号需手填（不在聊天模型列表里），测试连接后自动回填维度。'}
+            留空/0 = 自动；填具体值则要求接口按该维度输出（需模型支持，如 text-embedding-3 / Qwen3-embedding；bge-m3 等固定维度的填默认值或留空）。
           </Description>
         </TextField>
 
