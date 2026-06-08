@@ -87,7 +87,14 @@ export class WcdbService extends EventEmitter {
 
   // ========= 公共 API（保持与旧实现一致） =========
   async testConnection(dbPath: string, hexKey: string, wxid: string): Promise<{ success: boolean; error?: string; sessionCount?: number }> {
-    return this.call('testConnection', { dbPath, hexKey, wxid })
+    try {
+      return await this.call('testConnection', { dbPath, hexKey, wxid })
+    } catch (e) {
+      return {
+        success: false,
+        error: this.formatTestConnectionError(e)
+      }
+    }
   }
 
   async open(dbPath: string, hexKey: string, wxid: string): Promise<boolean> {
@@ -464,6 +471,18 @@ export class WcdbService extends EventEmitter {
       message.includes('WCDB utility process 未就绪') ||
       message.includes('utility postMessage 失败')
     )
+  }
+
+  private formatTestConnectionError(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!this.isRecoverableUtilityExit(error)) return message
+
+    return [
+      'WCDB 验证进程异常退出，未能完成账号目录验证。',
+      '请确认选择的是微信账号数据目录，解密密钥为 64 位十六进制；',
+      '如仍失败，请检查系统权限、杀毒软件或安全软件是否拦截 WCDB 组件，并重启软件后重试。',
+      `原始错误: ${message}`
+    ].join('')
   }
 
   private async recoverAfterUtilityExit(): Promise<boolean> {
