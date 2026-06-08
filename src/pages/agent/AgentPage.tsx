@@ -253,7 +253,14 @@ function toolPartProgressKey(part: unknown, toolName: string) {
   return toolProgressKey(toolName, toolCallId)
 }
 
-const SUB_AGENT_PROGRESS_LIMIT = 6
+function getDelegateTask(part: unknown): string | undefined {
+  const input = (part as { input?: unknown }).input
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined
+  const task = (input as { task?: unknown }).task
+  return typeof task === 'string' && task.trim() ? task.trim() : undefined
+}
+
+const SUB_AGENT_PROGRESS_LIMIT = 12
 
 function subAgentProgressKey(progress: AgentProgressEvent) {
   if (progress.toolCallId) return `call:${progress.toolCallId}`
@@ -296,6 +303,7 @@ function formatSubAgentProgressTitle(progress: AgentProgressEvent) {
 
 function formatSubAgentProgressMeta(progress: AgentProgressEvent): string[] {
   const meta: string[] = []
+  if (progress.depth != null) meta.push(`深度 ${progress.depth}`)
   if (progress.messagesScanned != null) meta.push(`扫描 ${progress.messagesScanned} 条`)
   if (progress.indexedCount != null) meta.push(`索引 ${progress.indexedCount} 条`)
   if (progress.sessionsScanned != null) meta.push(`会话 ${progress.sessionsScanned}`)
@@ -318,21 +326,44 @@ function subAgentProgressDotClass(progress: AgentProgressEvent) {
   return 'bg-foreground/70'
 }
 
-function SubAgentProgressPanel({ events }: { events: AgentProgressEvent[] }) {
+function formatProgressTime(value: number) {
+  return new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function subAgentPanelTitle(latest: AgentProgressEvent) {
+  if (latest.stage === 'error') return '子助手出错'
+  if (latest.stage === 'run_finished') return '子助手已完成'
+  return '子助手运行中'
+}
+
+function SubAgentProgressPanel({ events, task }: { events: AgentProgressEvent[]; task?: string }) {
   if (events.length === 0) return null
   const latestKey = subAgentProgressKey(events[events.length - 1])
+  const latest = events[events.length - 1]
+  const toolCount = new Set(events.map((event) => event.toolName).filter(Boolean)).size
 
   return (
     <section
       aria-live="polite"
-      className="mt-3 rounded-(--agent-radius,12px) border border-border bg-surface/80 px-3 py-2 text-xs shadow-xs"
+      className="mt-2 rounded-(--agent-radius,12px) border border-border bg-surface/80 px-3 py-2.5 text-xs shadow-xs"
     >
-      <div className="mb-1.5 flex min-w-0 items-center gap-2 font-medium text-foreground">
+      <div className="mb-2 flex min-w-0 items-center gap-2 font-medium text-foreground">
         <Sparkles className="size-3.5 shrink-0" />
-        <span className="shrink-0">子助手运行中</span>
+        <span className="shrink-0">{subAgentPanelTitle(latest)}</span>
         <span className="min-w-0 truncate text-muted-foreground font-normal">
-          {formatSubAgentProgressTitle(events[events.length - 1])}
+          {formatSubAgentProgressTitle(latest)}
         </span>
+      </div>
+      {task && (
+        <div className="mb-2 rounded-(--agent-radius,12px) bg-muted/50 px-2 py-1.5 text-muted-foreground">
+          <div className="mb-0.5 text-[11px] text-foreground">委托任务</div>
+          <div className="line-clamp-3 whitespace-pre-wrap break-words">{task}</div>
+        </div>
+      )}
+      <div className="mb-2 flex flex-wrap gap-1">
+        <span className="rounded-full bg-muted/60 px-2 py-0.5 text-muted-foreground">{events.length} 条进度</span>
+        {toolCount > 0 && <span className="rounded-full bg-muted/60 px-2 py-0.5 text-muted-foreground">{toolCount} 个工具</span>}
+        <span className="rounded-full bg-muted/60 px-2 py-0.5 text-muted-foreground">最近 {formatProgressTime(latest.at)}</span>
       </div>
       <div className="space-y-1">
         {events.map((progress) => {
@@ -353,7 +384,10 @@ function SubAgentProgressPanel({ events }: { events: AgentProgressEvent[] }) {
                 <span className={`absolute -right-0.5 -top-0.5 size-1.5 rounded-full ${subAgentProgressDotClass(progress)} ${active ? 'animate-pulse' : ''}`} />
               </span>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-foreground">{formatSubAgentProgressTitle(progress)}</div>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-foreground">{formatSubAgentProgressTitle(progress)}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{formatProgressTime(progress.at)}</span>
+                </div>
                 {meta.length > 0 && (
                   <div className="mt-0.5 flex min-w-0 flex-wrap gap-1">
                     {meta.map((item) => (
@@ -1344,6 +1378,12 @@ export default function AgentPage() {
   const { messages, sendMessage, setMessages, status, stop } = useChat({ transport })
   const [modelOpen, setModelOpen] = useState(false)
   const busy = status === 'submitted' || status === 'streaming'
+  const lastAssistantMessageHasDelegateTool = useMemo(() => {
+    const last = messages[messages.length - 1]
+    return !!last && last.role === 'assistant' && last.parts.some((part) => (
+      isToolUIPart(part) && part.type.replace(/^tool-/, '') === 'delegate_analysis'
+    ))
+  }, [messages])
   const [conversationTitle, setConversationTitle] = useState('新对话')
   const [titleLoading, setTitleLoading] = useState(false)
   const [titleEditing, setTitleEditing] = useState(false)
@@ -1865,6 +1905,7 @@ export default function AgentPage() {
               const chainActive = isLastMessage && busy
               const assistantText = message.role === 'assistant' ? messageTextOf(message) : ''
               const userDisplay = message.role === 'user' ? getUserMessageDisplay(message.parts) : null
+              const subAgentEventsForMessage = message.role === 'assistant' && isLastMessage ? subAgentProgress : []
               return (
                 <Message from={message.role} key={message.id}>
                   {userDisplay && <UserMessageMentions mentions={userDisplay.mentions} />}
@@ -1893,6 +1934,7 @@ export default function AgentPage() {
                           const elapsedMs = toolElapsedByKey[toolPartProgressKey(part, toolName)]
                           const label = done && elapsedMs ? `${toolLabel} · ${formatElapsed(elapsedMs)}` : toolLabel
                           const badges = collectToolBadges(part.input)
+                          const delegateTask = toolName === 'delegate_analysis' ? getDelegateTask(part) : undefined
                           if (part.state === 'output-available') {
                             for (const badge of collectRetrievalBadges(toolName, part.output)) pushBadge(badges, badge)
                             collectToolBadges(part.output, badges)
@@ -1915,6 +1957,9 @@ export default function AgentPage() {
                               )}
                               {part.state === 'output-error' && part.errorText && (
                                 <p className="text-destructive text-xs">{part.errorText}</p>
+                              )}
+                              {toolName === 'delegate_analysis' && subAgentEventsForMessage.length > 0 && (
+                                <SubAgentProgressPanel events={subAgentEventsForMessage} task={delegateTask} />
                               )}
                             </ChainOfThoughtStep>
                           )
@@ -1960,7 +2005,7 @@ export default function AgentPage() {
               {agentNotice}
             </div>
           )}
-          {busy && subAgentProgress.length > 0 && <SubAgentProgressPanel events={subAgentProgress} />}
+          {busy && subAgentProgress.length > 0 && !lastAssistantMessageHasDelegateTool && <SubAgentProgressPanel events={subAgentProgress} />}
           {status === 'submitted' && <Loader />}
         </ConversationContent>
         <ConversationScrollButton />
