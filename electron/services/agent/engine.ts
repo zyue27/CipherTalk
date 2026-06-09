@@ -177,10 +177,12 @@ export async function runAgent(
   onProgress?: AgentProgressReporter,
 ): Promise<void> {
   await withAgentProgress(onProgress, async () => {
-    reportAgentProgress({ stage: 'run_started', title: '开始分析聊天记录' })
     const userText = lastUserText(input.messages)
+    reportAgentProgress({ stage: 'run_started', title: '正在加载长期记忆' })
     const memoryContext = await buildMemoryContext(input.scope)
+    reportAgentProgress({ stage: 'run_started', title: '正在召回相关记忆' })
     const relevantMemoryContext = await preloadRelevantMemories(userText, input.scope)
+    reportAgentProgress({ stage: 'run_started', title: '正在准备工具' })
     const baseTools = withToolTimeouts(buildTools(input.scope, input.providerConfig, input.mcpTools))
     const prepared = buildAgentInstructions(input, memoryContext, relevantMemoryContext, baseTools)
     const agent = new ToolLoopAgent({
@@ -198,6 +200,7 @@ export async function runAgent(
       }),
     })
 
+    reportAgentProgress({ stage: 'run_started', title: '正在请求模型' })
     const result = await agent.stream({ messages: input.messages, abortSignal: signal })
     // 截留 message 的 finish，等 L1 自动记忆注入完再补发，让自动写入的工具 part 落在本条消息内
     let finishChunk: UIMessageChunk | undefined

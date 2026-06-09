@@ -11,12 +11,6 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
@@ -35,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Button as HeroButton, ButtonGroup, Dropdown, Label, Toolbar } from "@heroui/react";
 import type { ChatStatus, FileUIPart } from "ai";
 import {
   ArrowUpIcon,
@@ -403,7 +398,7 @@ export function PromptInputAttachments({
 }
 
 export type PromptInputActionAddAttachmentsProps = ComponentProps<
-  typeof DropdownMenuItem
+  typeof Dropdown.Item
 > & {
   label?: string;
 };
@@ -415,15 +410,17 @@ export const PromptInputActionAddAttachments = ({
   const attachments = usePromptInputAttachments();
 
   return (
-    <DropdownMenuItem
+    <Dropdown.Item
+      id="add-attachments"
+      textValue={label}
       {...props}
-      onSelect={(e) => {
-        e.preventDefault();
+      onAction={() => {
         attachments.openFileDialog();
       }}
     >
-      <ImageIcon className="mr-2 size-4" /> {label}
-    </DropdownMenuItem>
+      <ImageIcon className="size-4 shrink-0 text-muted" />
+      <Label>{label}</Label>
+    </Dropdown.Item>
   );
 };
 
@@ -945,40 +942,80 @@ export const PromptInputFooter = ({
   />
 );
 
-export type PromptInputToolsProps = HTMLAttributes<HTMLDivElement>;
+export type PromptInputToolsProps = Omit<
+  ComponentProps<typeof Toolbar>,
+  "className"
+> & {
+  className?: string;
+};
 
 export const PromptInputTools = ({
+  "aria-label": ariaLabel = "输入工具",
   className,
   ...props
 }: PromptInputToolsProps) => (
-  <div className={cn("flex items-center gap-1", className)} {...props} />
+  <Toolbar
+    aria-label={ariaLabel}
+    className={cn("max-w-full gap-2", className)}
+    {...props}
+  />
 );
 
-export type PromptInputButtonProps = ComponentProps<typeof InputGroupButton>;
+type HeroButtonProps = ComponentProps<typeof HeroButton>;
+
+export type PromptInputButtonProps = Omit<
+  HeroButtonProps,
+  "children" | "className" | "isDisabled" | "size" | "variant"
+> & {
+  children?: ReactNode;
+  className?: string;
+  disabled?: boolean;
+  isDisabled?: boolean;
+  showGroupSeparator?: boolean;
+  size?: HeroButtonProps["size"] | "icon-sm";
+  title?: string;
+  variant?: HeroButtonProps["variant"] | "default";
+};
 
 export const PromptInputButton = ({
   variant = "ghost",
+  "aria-label": ariaLabel,
   className,
+  disabled,
+  isDisabled,
+  showGroupSeparator,
   size,
+  title,
+  children,
   ...props
 }: PromptInputButtonProps) => {
-  const newSize =
-    size ?? (Children.count(props.children) > 1 ? "sm" : "icon-sm");
+  const isIconOnly = size === "icon-sm" || Children.count(children) === 1;
+  const heroSize = size === "icon-sm" ? "sm" : (size ?? "sm");
+  const heroVariant = variant === "default" ? "primary" : variant;
 
   return (
-    <InputGroupButton
-      className={cn("rounded-(--agent-radius,12px)", className)}
-      size={newSize}
+    <HeroButton
+      aria-label={ariaLabel ?? title}
+      className={cn(
+        isIconOnly && "size-8 p-0",
+        className
+      )}
+      isDisabled={isDisabled ?? disabled}
+      isIconOnly={isIconOnly}
+      size={heroSize}
       type="button"
-      variant={variant}
+      variant={heroVariant}
       {...props}
-    />
+    >
+      {showGroupSeparator && <ButtonGroup.Separator />}
+      {children}
+    </HeroButton>
   );
 };
 
-export type PromptInputActionMenuProps = ComponentProps<typeof DropdownMenu>;
+export type PromptInputActionMenuProps = ComponentProps<typeof Dropdown>;
 export const PromptInputActionMenu = (props: PromptInputActionMenuProps) => (
-  <DropdownMenu {...props} />
+  <Dropdown {...props} />
 );
 
 export type PromptInputActionMenuTriggerProps = PromptInputButtonProps;
@@ -988,37 +1025,49 @@ export const PromptInputActionMenuTrigger = ({
   children,
   ...props
 }: PromptInputActionMenuTriggerProps) => (
-  <DropdownMenuTrigger asChild>
-    <PromptInputButton className={className} {...props}>
-      {children ?? <PlusIcon className="size-4" />}
-    </PromptInputButton>
-  </DropdownMenuTrigger>
+  <PromptInputButton className={className} {...props}>
+    {children ?? <PlusIcon className="size-4" />}
+  </PromptInputButton>
 );
 
 export type PromptInputActionMenuContentProps = ComponentProps<
-  typeof DropdownMenuContent
+  typeof Dropdown.Menu
 >;
 export const PromptInputActionMenuContent = ({
   className,
+  children,
   ...props
 }: PromptInputActionMenuContentProps) => (
-  <DropdownMenuContent align="start" className={cn("rounded-(--agent-radius,12px)", className)} {...props} />
+  <Dropdown.Popover className={cn("min-w-52", className)} placement="top start">
+    <Dropdown.Menu {...props}>{children}</Dropdown.Menu>
+  </Dropdown.Popover>
 );
 
 export type PromptInputActionMenuItemProps = ComponentProps<
-  typeof DropdownMenuItem
->;
+  typeof Dropdown.Item
+> & {
+  onSelect?: () => void;
+};
 export const PromptInputActionMenuItem = ({
-  className,
+  children,
+  onSelect,
+  onAction,
+  textValue,
   ...props
 }: PromptInputActionMenuItemProps) => (
-  <DropdownMenuItem className={cn("rounded-(--agent-radius,12px)", className)} {...props} />
+  <Dropdown.Item
+    textValue={textValue ?? (typeof children === "string" ? children : undefined)}
+    {...props}
+    onAction={onAction ?? onSelect}
+  >
+    {children}
+  </Dropdown.Item>
 );
 
 // Note: Actions that perform side-effects (like opening a file dialog)
 // are provided in opt-in modules (e.g., prompt-input-attachments).
 
-export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
+export type PromptInputSubmitProps = PromptInputButtonProps & {
   status?: ChatStatus;
 };
 
@@ -1026,6 +1075,9 @@ export const PromptInputSubmit = ({
   className,
   variant = "default",
   size = "icon-sm",
+  disabled,
+  isDisabled,
+  showGroupSeparator,
   status,
   children,
   ...props
@@ -1039,16 +1091,19 @@ export const PromptInputSubmit = ({
   }
 
   return (
-    <InputGroupButton
+    <HeroButton
       aria-label="Submit"
-      className={cn(className)}
-      size={size}
+      className={cn("size-8 p-0", className)}
+      isDisabled={isDisabled ?? disabled}
+      isIconOnly
+      size={size === "icon-sm" ? "sm" : size}
       type="submit"
-      variant={variant}
+      variant={variant === "default" ? "primary" : variant}
       {...props}
     >
+      {showGroupSeparator && <ButtonGroup.Separator />}
       {children ?? Icon}
-    </InputGroupButton>
+    </HeroButton>
   );
 };
 
@@ -1515,7 +1570,7 @@ export const PromptInputSpeechButton = ({
         isTranscribing ||
         (!hasLocalWhisper && !recognition)
       }
-      onClick={toggleListening}
+      onPress={toggleListening}
       title={
         buttonTitle ||
         (recognition ? props.title : "当前环境不支持语音输入")

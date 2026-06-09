@@ -12,6 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { Table as HeroTable } from "@heroui/react";
 import type { FileUIPart, UIMessage } from "ai";
 import {
   CheckIcon,
@@ -27,8 +28,8 @@ import {
   Table2Icon,
   XIcon,
 } from "lucide-react";
-import type { ComponentProps, HTMLAttributes, ReactElement } from "react";
-import { Children, createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
+import type { ComponentProps, HTMLAttributes, ReactElement, ReactNode } from "react";
+import { Children, createContext, isValidElement, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { bundledLanguages, type BundledLanguage } from "shiki";
 import {
@@ -669,21 +670,113 @@ type MessageTableProps = ComponentProps<"table"> & {
   node?: unknown;
 };
 
-const MessageTable = ({ children, className, node: _node, ...props }: MessageTableProps) => {
+function getElementChildren(node: ReactNode): ReactNode {
+  return isValidElement(node) ? (node.props as { children?: ReactNode }).children : null;
+}
+
+function getElementClassName(node: ReactNode): string | undefined {
+  return isValidElement(node) ? (node.props as { className?: string }).className : undefined;
+}
+
+function isElementTag(node: ReactNode, tagName: string): node is ReactElement {
+  if (!isValidElement(node)) return false;
+  if (node.type === tagName) return true;
+  const hastNode = (node.props as { node?: { tagName?: string } }).node;
+  return hastNode?.tagName === tagName;
+}
+
+function getChildElements(children: ReactNode, tagName: string): ReactElement[] {
+  return Children.toArray(children).filter(
+    (child): child is ReactElement => isElementTag(child, tagName)
+  );
+}
+
+function getTableCells(row: ReactNode, tagName: "td" | "th"): ReactElement[] {
+  return getChildElements(getElementChildren(row), tagName);
+}
+
+function getTableRows(children: ReactNode): ReactElement[] {
+  return getChildElements(children, "tr");
+}
+
+const MessageTable = ({ children, className, node: _node, ..._props }: MessageTableProps) => {
   const { isStreaming } = useContext(MessageRenderContext);
 
   return (
-    <div className="my-4 overflow-x-auto rounded-(--agent-radius,12px) border border-border">
-      <table className={cn("w-full border-collapse text-sm", className)} {...props}>
-        {children}
-      </table>
+    <div className="my-4 min-w-0 max-w-full">
+      <HeroTable className={cn("max-w-full", className)}>
+        <HeroTable.ScrollContainer>
+          <HeroTable.Content
+            aria-label="AI 生成表格"
+            className="min-w-max text-sm"
+          >
+            {children}
+          </HeroTable.Content>
+        </HeroTable.ScrollContainer>
+      </HeroTable>
       {isStreaming && (
-        <div className="flex items-center gap-2 border-t border-border bg-muted/30 px-3 py-2 text-muted-foreground text-xs">
+        <div className="mt-2 flex items-center gap-2 rounded-(--agent-radius,12px) border border-border bg-muted/30 px-3 py-2 text-muted-foreground text-xs">
           <Table2Icon className="size-3.5" />
           <span>正在整理表格…</span>
         </div>
       )}
     </div>
+  );
+};
+
+type MessageTableHeadProps = ComponentProps<"thead"> & {
+  node?: unknown;
+};
+
+const MessageTableHead = ({ children, node: _node, ..._props }: MessageTableHeadProps) => {
+  const headerRow = getTableRows(children)[0];
+  const headers = getTableCells(headerRow, "th");
+
+  return (
+    <HeroTable.Header>
+      {(headers.length > 0 ? headers : Children.toArray(children)).map((header, index) => (
+        <HeroTable.Column
+          className={cn("whitespace-nowrap", getElementClassName(header))}
+          id={`col-${index}`}
+          isRowHeader={index === 0}
+          key={`col-${index}`}
+        >
+          {getElementChildren(header) || header}
+        </HeroTable.Column>
+      ))}
+    </HeroTable.Header>
+  );
+};
+
+type MessageTableBodyProps = ComponentProps<"tbody"> & {
+  node?: unknown;
+};
+
+const MessageTableBody = ({ children, node: _node, ..._props }: MessageTableBodyProps) => {
+  const rows = getTableRows(children);
+
+  return (
+    <HeroTable.Body>
+      {rows.map((row, rowIndex) => {
+        const cells = getTableCells(row, "td");
+        return (
+          <HeroTable.Row
+            className={getElementClassName(row)}
+            id={`row-${rowIndex}`}
+            key={`row-${rowIndex}`}
+          >
+            {cells.map((cell, cellIndex) => (
+              <HeroTable.Cell
+                className={cn("align-top wrap-break-word", getElementClassName(cell))}
+                key={`cell-${rowIndex}-${cellIndex}`}
+              >
+                {getElementChildren(cell)}
+              </HeroTable.Cell>
+            ))}
+          </HeroTable.Row>
+        );
+      })}
+    </HeroTable.Body>
   );
 };
 
@@ -722,7 +815,14 @@ export const MessageResponse = memo(
             "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
             className
           )}
-          components={{ a: MessageLink, code: MessageCode, table: MessageTable, ...components }}
+          components={{
+            a: MessageLink,
+            code: MessageCode,
+            table: MessageTable,
+            tbody: MessageTableBody,
+            thead: MessageTableHead,
+            ...components,
+          }}
           isAnimating={isStreaming}
           {...props}
         >

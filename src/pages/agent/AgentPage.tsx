@@ -5,8 +5,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { isToolUIPart, type ChatStatus, type UIMessage } from 'ai'
-import { Button as HeroButton, Modal, Surface, Table } from '@heroui/react'
-import { AtSign, BarChart3, Braces, Brain, CheckIcon, Clock3, Code2, Copy, FileText, History, Image as ImageIcon, Info, Link2, PenLine, Quote, Search, SquarePen, Table2, Trash2, Users, Volume2, Wrench, X, Sparkles } from 'lucide-react'
+import { Button as HeroButton, ButtonGroup, Dropdown, Label, Modal, Separator, Surface, Table } from '@heroui/react'
+import { AtSign, BarChart3, Braces, Brain, CheckIcon, ChevronDown, Clock3, Code2, Copy, FileText, History, Image as ImageIcon, Info, Link2, PenLine, Quote, Search, Slash, SquarePen, Table2, Trash2, Users, Volume2, Wrench, X, Sparkles } from 'lucide-react'
 import { Sources, SourcesContent, SourcesTrigger } from '@/components/ai-elements/sources'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import {
@@ -22,7 +22,6 @@ import {
   PromptInputActionAddAttachments,
   PromptInputActionMenu,
   PromptInputActionMenuContent,
-  PromptInputActionMenuItem,
   PromptInputActionMenuTrigger,
   PromptInputAttachment,
   PromptInputAttachments,
@@ -31,11 +30,6 @@ import {
   PromptInputHeader,
   PromptInputProvider,
   PromptInputSpeechButton,
-  PromptInputSelect,
-  PromptInputSelectContent,
-  PromptInputSelectItem,
-  PromptInputSelectTrigger,
-  PromptInputSelectValue,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
@@ -83,13 +77,55 @@ const REASONING_EFFORT_OPTIONS: Array<{ value: AgentReasoningEffort; label: stri
   { value: 'high', label: '思考：高' },
 ]
 
-function PromptPresetMenuItem({ label, text, icon: Icon }: (typeof PROMPT_PRESETS)[number]) {
+function SlashPresetButton({ showGroupSeparator = false }: { showGroupSeparator?: boolean }) {
   const { textInput } = usePromptInputController()
+  const value = textInput.value
+  const slashMatch = value.match(/(?:^|\s)\/([^\s/]{0,20})$/)
+  const query = slashMatch ? slashMatch[1].toLowerCase() : null
+  const presets = useMemo(
+    () => PROMPT_PRESETS.filter((preset) => !query || preset.label.toLowerCase().includes(query) || preset.text.toLowerCase().includes(query)),
+    [query]
+  )
+  const [manualOpen, setManualOpen] = useState(false)
+  const isOpen = manualOpen || query !== null
+
+  const openSlashMenu = () => {
+    const v = textInput.value
+    textInput.setInput(v && !v.endsWith(' ') && !v.endsWith('/') ? `${v} /` : `${v}/`)
+    setManualOpen(true)
+  }
+
+  const applyPreset = (text: string) => {
+    if (query !== null) {
+      const slashIdx = value.lastIndexOf('/')
+      const prefix = slashIdx >= 0 ? value.slice(0, slashIdx).trimEnd() : ''
+      textInput.setInput(prefix ? `${prefix} ${text}` : text)
+    } else {
+      textInput.setInput(text)
+    }
+    setManualOpen(false)
+  }
+
   return (
-    <PromptInputActionMenuItem onSelect={() => textInput.setInput(text)}>
-      <Icon className="size-4" />
-      {label}
-    </PromptInputActionMenuItem>
+    <Dropdown isOpen={isOpen} onOpenChange={setManualOpen}>
+      <HeroButton aria-label="打开预设" isIconOnly size="sm" variant="tertiary" onPress={openSlashMenu}>
+        {showGroupSeparator && <ButtonGroup.Separator />}
+        <Slash className="size-3.5" />
+      </HeroButton>
+      <Dropdown.Popover className="min-w-56" placement="top start">
+        <Dropdown.Menu>
+          {presets.map((preset) => {
+            const Icon = preset.icon
+            return (
+              <Dropdown.Item id={`preset-${preset.label}`} key={preset.label} textValue={preset.label} onAction={() => applyPreset(preset.text)}>
+                <Icon className="size-4 shrink-0 text-muted" />
+                <Label>{preset.label}</Label>
+              </Dropdown.Item>
+            )
+          })}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown>
   )
 }
 
@@ -304,6 +340,7 @@ function getDelegateTask(part: unknown): string | undefined {
 }
 
 const SUB_AGENT_PROGRESS_LIMIT = 12
+const AGENT_PENDING_TITLE = '正在准备请求'
 
 function subAgentProgressKey(progress: AgentProgressEvent) {
   if (progress.toolCallId) return `call:${progress.toolCallId}`
@@ -363,6 +400,41 @@ function subAgentProgressIcon(progress: AgentProgressEvent) {
   return Wrench
 }
 
+function agentProgressIcon(progress: AgentProgressEvent) {
+  const title = progress.title || ''
+  if (progress.stage === 'error') return Info
+  if (title.includes('记忆')) return Brain
+  if (title.includes('工具')) return Wrench
+  if (title.includes('模型')) return Sparkles
+  return Sparkles
+}
+
+function AgentProgressChain({ active, events }: { active: boolean; events: AgentProgressEvent[] }) {
+  if (events.length === 0) return null
+  const latestKey = subAgentProgressKey(events[events.length - 1])
+
+  return (
+    <MessageChainOfThought active={active}>
+      {events.map((progress) => {
+        const key = subAgentProgressKey(progress)
+        const stepActive = active
+          && key === latestKey
+          && progress.stage !== 'run_finished'
+          && progress.stage !== 'error'
+        return (
+          <ChainOfThoughtStep
+            description={progress.detail}
+            icon={agentProgressIcon(progress)}
+            key={key}
+            label={renderChainLabel(formatSubAgentProgressTitle(progress), stepActive)}
+            status={stepActive ? 'active' : progress.stage === 'error' ? 'pending' : 'complete'}
+          />
+        )
+      })}
+    </MessageChainOfThought>
+  )
+}
+
 function subAgentProgressDotClass(progress: AgentProgressEvent) {
   if (progress.stage === 'error') return 'bg-destructive'
   if (progress.stage === 'tool_finished' || progress.stage === 'run_finished') return 'bg-emerald-500'
@@ -375,6 +447,10 @@ function formatProgressTime(value: number) {
 
 function subAgentPanelTitle(latest: AgentProgressEvent) {
   if (latest.stage === 'error') return '子助手出错'
+  if ((latest.depth ?? 0) === 0) {
+    if (latest.stage === 'run_finished') return 'AI 助手已完成'
+    return 'AI 助手准备中'
+  }
   if (latest.stage === 'run_finished') return '子助手已完成'
   return '子助手运行中'
 }
@@ -832,21 +908,22 @@ function MentionField({
 }
 
 /** 工具栏里的 @ 按钮：往输入框塞一个 @ 触发选择列表（提升可发现性）。 */
-function MentionTriggerButton() {
+function MentionTriggerButton({ showGroupSeparator = false }: { showGroupSeparator?: boolean }) {
   const { textInput } = usePromptInputController()
   return (
-    <Button
+    <HeroButton
       aria-label="提及联系人或群"
-      className="size-8 rounded-(--agent-radius,12px) border-border/60 bg-transparent p-0 hover:bg-accent/50"
-      onClick={() => {
+      isIconOnly
+      onPress={() => {
         const v = textInput.value
         textInput.setInput(v && !v.endsWith(' ') && !v.endsWith('@') ? `${v} @` : `${v}@`)
       }}
-      type="button"
-      variant="outline"
+      size="sm"
+      variant="tertiary"
     >
+      {showGroupSeparator && <ButtonGroup.Separator />}
       <AtSign className="size-3.5" />
-    </Button>
+    </HeroButton>
   )
 }
 
@@ -1345,6 +1422,8 @@ export default function AgentPage() {
   const [currentProviderId, setCurrentProviderId] = useState('')
   const [currentModelId, setCurrentModelId] = useState('')
   const [toolElapsedByKey, setToolElapsedByKey] = useState<Record<string, number>>({})
+  const [agentProgress, setAgentProgress] = useState<AgentProgressEvent[]>([])
+  const [agentRunPending, setAgentRunPending] = useState(false)
   const [subAgentProgress, setSubAgentProgress] = useState<AgentProgressEvent[]>([])
   const [agentNotice, setAgentNotice] = useState('')
   const [usageDetailsModal, setUsageDetailsModal] = useState<AgentMessageMetadata | null>(null)
@@ -1444,8 +1523,16 @@ export default function AgentPage() {
   const handleAgentProgress = useCallback((progress: AgentProgressEvent) => {
     if ((progress.depth ?? 0) > 0) {
       setSubAgentProgress((prev) => mergeSubAgentProgress(prev, progress))
-    } else if (progress.stage === 'run_started') {
-      setSubAgentProgress([])
+    } else {
+      setAgentProgress((prev) => {
+        const withoutLocalPending = prev.filter((item) => item.title !== AGENT_PENDING_TITLE)
+        return mergeSubAgentProgress(withoutLocalPending, progress)
+      })
+      if (progress.stage === 'run_started') {
+        setSubAgentProgress([])
+      } else if (progress.stage === 'run_finished' || progress.stage === 'error') {
+        setAgentRunPending(false)
+      }
     }
 
     if (progress.stage === 'tool_finished' && progress.toolName && progress.elapsedMs) {
@@ -1527,6 +1614,9 @@ export default function AgentPage() {
       isToolUIPart(part) && part.type.replace(/^tool-/, '') === 'delegate_analysis'
     ))
   }, [messages])
+  const showAgentProgressChain = agentProgress.length > 0
+    && status !== 'streaming'
+    && (status === 'submitted' || agentRunPending)
   const [conversationTitle, setConversationTitle] = useState('新对话')
   const [titleLoading, setTitleLoading] = useState(false)
   const [titleEditing, setTitleEditing] = useState(false)
@@ -1667,6 +1757,8 @@ export default function AgentPage() {
     setTitleDraft('')
     setTitleLoading(false)
     setToolElapsedByKey({})
+    setAgentProgress([])
+    setAgentRunPending(false)
     setSubAgentProgress([])
     setAgentNotice('')
     activeScopeRef.current = { kind: 'global' }
@@ -1694,6 +1786,8 @@ export default function AgentPage() {
       activeScopeRef.current = loaded.scope || { kind: 'global' }
       setMentions([])
       setToolElapsedByKey({})
+      setAgentProgress([])
+      setAgentRunPending(false)
       setSubAgentProgress([])
       setAgentNotice('')
       setTitleLoading(false)
@@ -1715,6 +1809,8 @@ export default function AgentPage() {
         activeScopeRef.current = { kind: 'global' }
         lastSavedMessagesRef.current = ''
         setToolElapsedByKey({})
+        setAgentProgress([])
+        setAgentRunPending(false)
         setSubAgentProgress([])
       }
     })
@@ -1817,7 +1913,7 @@ export default function AgentPage() {
     }
   }, [refreshConversationRecords])
 
-  const handleSubmit = (message: PromptInputMessage) => {
+  const handleSubmit = async (message: PromptInputMessage) => {
     if (busy) {
       void stop()
       setSubAgentProgress([])
@@ -1827,26 +1923,28 @@ export default function AgentPage() {
       setAgentNotice('当前模型不支持工具调用，无法查询本地聊天记录。请切换到带“工具调用”能力的模型。')
       return
     }
-    void (async () => {
-      const isFirstUserMessage = messages.length === 0
-      const firstMessageForTitle = message.text.trim()
-      let text = message.text.trim()
-      const currentMentions = mentions
-      if (currentMentions.length > 0) {
-        const mentionLine = currentMentions.map((m) => `@${m.displayName}[${m.username}]`).join(' ')
-        text = text ? `${mentionLine}\n${text}` : mentionLine
-      }
-      if (!text && message.files.length === 0) return
+    const isFirstUserMessage = messages.length === 0
+    const firstMessageForTitle = message.text.trim()
+    let text = message.text.trim()
+    const currentMentions = mentions
+    if (currentMentions.length > 0) {
+      const mentionLine = currentMentions.map((m) => `@${m.displayName}[${m.username}]`).join(' ')
+      text = text ? `${mentionLine}\n${text}` : mentionLine
+    }
+    if (!text && message.files.length === 0) return
 
-      const submitScope: AgentScope =
-        currentMentions.length === 1
-          ? { kind: 'session', sessionId: currentMentions[0].username, displayName: currentMentions[0].displayName }
-          : { kind: 'global' }
-      activeScopeRef.current = submitScope
-      submitScopeRef.current = submitScope
-      setAgentNotice('')
-      setSubAgentProgress([])
+    const submitScope: AgentScope =
+      currentMentions.length === 1
+        ? { kind: 'session', sessionId: currentMentions[0].username, displayName: currentMentions[0].displayName }
+        : { kind: 'global' }
+    activeScopeRef.current = submitScope
+    submitScopeRef.current = submitScope
+    setAgentNotice('')
+    setAgentProgress([{ stage: 'run_started', title: AGENT_PENDING_TITLE, detail: '正在创建会话并准备上下文', at: Date.now() }])
+    setAgentRunPending(true)
+    setSubAgentProgress([])
 
+    try {
       if (!conversationIdRef.current) {
         const fallback = buildFallbackConversationTitle(firstMessageForTitle || text)
         setConversationTitle(fallback)
@@ -1855,11 +1953,17 @@ export default function AgentPage() {
 
       if (isFirstUserMessage) generateTitleFromFirstMessage(firstMessageForTitle || text)
 
-      await Promise.resolve(sendMessage({ text, files: message.files })).finally(() => {
+      const sendPromise = Promise.resolve(sendMessage({ text, files: message.files })).finally(() => {
         submitScopeRef.current = null
+        setAgentRunPending(false)
       })
+      void sendPromise
       setMentions([])
-    })()
+    } catch (error) {
+      submitScopeRef.current = null
+      setAgentRunPending(false)
+      throw error
+    }
   }
 
   const handleModelSelect = useCallback((id: string) => {
@@ -2174,13 +2278,20 @@ export default function AgentPage() {
               )
             })
           )}
+          {showAgentProgressChain && (
+            <Message from="assistant">
+              <MessageContent>
+                <AgentProgressChain active={status === 'submitted' || agentRunPending} events={agentProgress} />
+              </MessageContent>
+            </Message>
+          )}
           {agentNotice && (
             <div className="mt-3 rounded-(--agent-radius,12px) border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive text-xs">
               {agentNotice}
             </div>
           )}
           {busy && subAgentProgress.length > 0 && !lastAssistantMessageHasDelegateTool && <SubAgentProgressPanel events={subAgentProgress} />}
-          {status === 'submitted' && <Loader />}
+          {status === 'submitted' && agentProgress.length === 0 && <Loader />}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
@@ -2219,71 +2330,85 @@ export default function AgentPage() {
             </PromptInputBody>
 
             <PromptInputFooter>
-              <PromptInputTools className="flex-wrap">
-                <PromptInputActionMenu>
-                  <PromptInputActionMenuTrigger aria-label="更多输入操作" />
-                  <PromptInputActionMenuContent>
-                    <PromptInputActionAddAttachments label="添加图片或文件" />
-                    {PROMPT_PRESETS.map((preset) => (
-                      <PromptPresetMenuItem key={preset.label} {...preset} />
-                    ))}
-                  </PromptInputActionMenuContent>
-                </PromptInputActionMenu>
-                <MentionTriggerButton />
-                <PromptInputSpeechButton aria-label="语音输入" language="zh-CN" />
+              <PromptInputTools className="flex-wrap gap-2">
+                <ButtonGroup size="sm" variant="tertiary">
+                  <PromptInputActionMenu>
+                    <PromptInputActionMenuTrigger aria-label="更多输入操作" variant="tertiary" />
+                    <PromptInputActionMenuContent>
+                      <PromptInputActionAddAttachments label="添加图片或文件" />
+                    </PromptInputActionMenuContent>
+                  </PromptInputActionMenu>
+                  <SlashPresetButton showGroupSeparator />
+                  <MentionTriggerButton showGroupSeparator />
+                  <PromptInputSpeechButton aria-label="语音输入" language="zh-CN" showGroupSeparator variant="tertiary" />
+                </ButtonGroup>
 
-                <PromptInputSelect
-                  onValueChange={(value) => setReasoningEffort(value as AgentReasoningEffort)}
-                  value={reasoningEffort}
-                >
-                  <PromptInputSelectTrigger aria-label="思考程度" className="h-8 gap-1.5 rounded-(--agent-radius,12px) px-2.5">
-                    <Brain className="size-3.5" />
-                    <PromptInputSelectValue />
-                  </PromptInputSelectTrigger>
-                  <PromptInputSelectContent align="start" position="popper" side="top">
-                    {REASONING_EFFORT_OPTIONS.map((option) => (
-                      <PromptInputSelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </PromptInputSelectItem>
-                    ))}
-                  </PromptInputSelectContent>
-                </PromptInputSelect>
+                <Separator orientation="vertical" variant="tertiary" />
 
-                <ModelSelector onOpenChange={setModelOpen} open={modelOpen}>
-                  <ModelSelectorTrigger asChild>
-                    <Button className="max-w-48 rounded-(--agent-radius,12px) border-border/60 bg-transparent hover:bg-accent/50" variant="outline">
-                      {selectedModelData?.chefSlug && (
-                        <AIProviderLogo providerId={selectedModelData.chefSlug} alt={selectedModelData.chef} className="shrink-0" size={18} />
-                      )}
-                      {selectedModelData?.name && (
-                        <ModelSelectorName>{selectedModelData.name}</ModelSelectorName>
-                      )}
-                    </Button>
-                  </ModelSelectorTrigger>
-                  <ModelSelectorContent>
-                    <ModelSelectorInput placeholder="搜索模型..." />
-                    <ModelSelectorList>
-                      <ModelSelectorEmpty>没有匹配的模型</ModelSelectorEmpty>
-                      {chefs.map((chef) => (
-                        <ModelSelectorGroup heading={chef} key={chef}>
-                          {models
-                            .filter((model) => model.chef === chef)
-                            .map((model) => (
-                              <ModelItem
-                                key={model.id}
-                                model={model}
-                                onSelect={handleModelSelect}
-                                selectedModel={selectedPresetId}
-                              />
-                            ))}
-                        </ModelSelectorGroup>
-                      ))}
-                    </ModelSelectorList>
-                  </ModelSelectorContent>
-                </ModelSelector>
+                <ButtonGroup size="sm" variant="tertiary">
+                  <Dropdown>
+                    <HeroButton aria-label="思考程度" size="sm" variant="tertiary">
+                      <Brain className="size-3.5" />
+                      {REASONING_EFFORT_OPTIONS.find((option) => option.value === reasoningEffort)?.label ?? '思考：自动'}
+                      <ChevronDown className="size-3.5" />
+                    </HeroButton>
+                    <Dropdown.Popover placement="top start">
+                      <Dropdown.Menu
+                        selectedKeys={new Set([reasoningEffort])}
+                        selectionMode="single"
+                        onAction={(key) => setReasoningEffort(key as AgentReasoningEffort)}
+                      >
+                        {REASONING_EFFORT_OPTIONS.map((option) => (
+                          <Dropdown.Item id={option.value} key={option.value} textValue={option.label}>
+                            <Dropdown.ItemIndicator />
+                            <Label>{option.label}</Label>
+                          </Dropdown.Item>
+                        ))}
+                      </Dropdown.Menu>
+                    </Dropdown.Popover>
+                  </Dropdown>
+                </ButtonGroup>
+
+                <ButtonGroup size="sm" variant="tertiary">
+                  <ModelSelector onOpenChange={setModelOpen} open={modelOpen}>
+                    <ModelSelectorTrigger asChild>
+                      <HeroButton className="max-w-48" size="sm" variant="tertiary">
+                        {selectedModelData?.chefSlug && (
+                          <AIProviderLogo providerId={selectedModelData.chefSlug} alt={selectedModelData.chef} className="shrink-0" size={18} />
+                        )}
+                        {selectedModelData?.name && (
+                          <ModelSelectorName>{selectedModelData.name}</ModelSelectorName>
+                        )}
+                      </HeroButton>
+                    </ModelSelectorTrigger>
+                    <ModelSelectorContent>
+                      <ModelSelectorInput placeholder="搜索模型..." />
+                      <ModelSelectorList>
+                        <ModelSelectorEmpty>没有匹配的模型</ModelSelectorEmpty>
+                        {chefs.map((chef) => (
+                          <ModelSelectorGroup heading={chef} key={chef}>
+                            {models
+                              .filter((model) => model.chef === chef)
+                              .map((model) => (
+                                <ModelItem
+                                  key={model.id}
+                                  model={model}
+                                  onSelect={handleModelSelect}
+                                  selectedModel={selectedPresetId}
+                                />
+                              ))}
+                          </ModelSelectorGroup>
+                        ))}
+                      </ModelSelectorList>
+                    </ModelSelectorContent>
+                  </ModelSelector>
+                </ButtonGroup>
+
               </PromptInputTools>
 
-              <AgentPromptSubmit busy={busy} status={status} />
+              <ButtonGroup size="sm">
+                <AgentPromptSubmit busy={busy} status={status} />
+              </ButtonGroup>
             </PromptInputFooter>
           </PromptInput>
         </PromptInputProvider>
