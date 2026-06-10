@@ -4,6 +4,7 @@ import {
   Menu,
   nativeImage,
   nativeTheme,
+  screen,
   Tray,
   type BrowserWindowConstructorOptions
 } from 'electron'
@@ -221,6 +222,7 @@ export function createWindowManager(ctx: MainProcessContext): WindowManager {
   let purchaseWindow: BrowserWindow | null = null
   let welcomeWindow: BrowserWindow | null = null
   let chatHistoryWindow: BrowserWindow | null = null
+  let petWindow: BrowserWindow | null = null
 
   const createTray = (): Tray | null => {
     const existingTray = ctx.getTray()
@@ -886,6 +888,60 @@ export function createWindowManager(ctx: MainProcessContext): WindowManager {
         chatWindow = null
       }
       return true
+    },
+
+    openPetWindow() {
+      if (petWindow && !petWindow.isDestroyed()) {
+        petWindow.show()
+        return petWindow
+      }
+
+      // 默认落在主屏右下角（任务栏上方），透明无边框，靠 CSS app-region 拖动
+      const { workArea } = screen.getPrimaryDisplay()
+      const width = 150
+      const height = 170
+      petWindow = new BrowserWindow({
+        width,
+        height,
+        x: workArea.x + workArea.width - width - 24,
+        y: workArea.y + workArea.height - height - 16,
+        frame: false,
+        transparent: true,
+        resizable: false,
+        maximizable: false,
+        fullscreenable: false,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        hasShadow: false,
+        show: false,
+        webPreferences: {
+          preload: join(__dirname, 'preload.js'),
+          devTools: ctx.allowDevTools,
+          contextIsolation: true,
+          nodeIntegration: false,
+          webSecurity: false
+        }
+      })
+
+      petWindow.setAlwaysOnTop(true, 'screen-saver')
+      petWindow.once('ready-to-show', () => petWindow?.show())
+      loadWindowRoute(ctx, petWindow, '/pet-window')
+
+      petWindow.on('closed', () => {
+        petWindow = null
+      })
+      return petWindow
+    },
+
+    closePetWindow() {
+      if (petWindow && !petWindow.isDestroyed()) {
+        petWindow.close()
+      }
+      petWindow = null
+    },
+
+    isPetWindowOpen() {
+      return petWindow !== null && !petWindow.isDestroyed()
     }
   }
 

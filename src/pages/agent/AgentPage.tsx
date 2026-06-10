@@ -50,6 +50,8 @@ import {
 import { Loader } from '@/components/ai-elements/loader'
 import { Shimmer } from '@/components/ai-elements/shimmer'
 import { IpcChatTransport, type AgentModelConfig, type AgentProgressEvent, type AgentReasoningEffort, type AgentScope } from '@/features/aiagent/transport/ipcChatTransport'
+import { CurrentPetProvider, useCurrentPet } from '@/features/pets/PetContext'
+import { PetSprite } from '@/features/pets/PetSprite'
 import * as configService from '@/services/config'
 
 const PROMPT_PRESETS = [
@@ -1388,6 +1390,21 @@ function messageTextOf(message: UIMessage): string {
     .trim()
 }
 
+/** AI 回复左下角的常驻宠物（未选宠物时不占位） */
+function MessageFooterPet() {
+  const pet = useCurrentPet()
+  if (!pet) return null
+  return (
+    <PetSprite
+      className="mr-1.5"
+      label={pet.displayName}
+      scale={0.14}
+      src={pet.spriteUrl}
+      state="idle"
+    />
+  )
+}
+
 function MessageUsageStats({
   canRegenerate,
   metadata,
@@ -1417,6 +1434,7 @@ function MessageUsageStats({
   return (
     <div className="mt-3 border-border/60 border-t pt-2 text-[11px] leading-5 text-muted-foreground">
       <div className="flex items-center">
+        <MessageFooterPet />
         <MessageActions className="shrink-0">
           <MessageAction
             disabled={!messageText}
@@ -1760,6 +1778,19 @@ export default function AgentPage() {
   const [conversationRecords, setConversationRecords] = useState<AgentConversationRecord[]>([])
   const [recordPendingDelete, setRecordPendingDelete] = useState<AgentConversationRecord | null>(null)
   const [recordDeleting, setRecordDeleting] = useState(false)
+  // 把 Agent 运行状态广播给桌宠窗口：跑→run 动画，报错→failed，收尾→done(挥手)
+  const petAgentState = busy ? 'running' : agentNotice ? 'failed' : 'idle'
+  const petPrevBusyRef = useRef(false)
+  useEffect(() => {
+    if (petAgentState === 'idle' && petPrevBusyRef.current) {
+      window.electronAPI.pet?.setAgentState('done')
+      const timer = window.setTimeout(() => window.electronAPI.pet?.setAgentState('idle'), 2600)
+      petPrevBusyRef.current = false
+      return () => window.clearTimeout(timer)
+    }
+    petPrevBusyRef.current = petAgentState === 'running'
+    window.electronAPI.pet?.setAgentState(petAgentState)
+  }, [petAgentState])
 
   const appendMentionTargets = useCallback((items: MentionTarget[]) => {
     if (items.length === 0) return
@@ -2250,6 +2281,7 @@ export default function AgentPage() {
   ), [sessionNameMap, sourceNameById])
 
   return (
+    <CurrentPetProvider>
     <Surface
       className="flex h-full min-h-0 flex-col"
       style={{ '--agent-radius': '12px' } as CSSProperties}
@@ -2797,5 +2829,6 @@ export default function AgentPage() {
         </AlertDialog.Container>
       </AlertDialog.Backdrop>
     </Surface>
+    </CurrentPetProvider>
   )
 }

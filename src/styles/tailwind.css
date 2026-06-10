@@ -202,3 +202,48 @@
     opacity: 0;
   }
 }
+
+/* AI 宠物精灵图（petdex 格式：8 列 × 9 行，每帧 192×208，steps() 逐帧播放） */
+.ct-pet-sprite-frame {
+  --pet-scale: 0.15;
+  display: inline-block;
+  width: calc(192px * var(--pet-scale));
+  height: calc(208px * var(--pet-scale));
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.ct-pet-sprite {
+  --sprite-row: 0;
+  --sprite-frames: 6;
+  --sprite-duration: 1100ms;
+  --sprite-y: calc(var(--sprite-row) * -208px);
+  --sprite-end-x: calc(var(--sprite-frames) * -192px);
+  display: block;
+  width: 192px;
+  height: 208px;
+  background-image: var(--sprite-url);
+  background-repeat: no-repeat;
+  background-size: 1536px 1872px;
+  image-rendering: pixelated;
+  transform: scale(var(--pet-scale)) translateZ(0);
+  transform-origin: top left;
+  will-change: background-position;
+  animation: ct-pet-state var(--sprite-duration) steps(var(--sprite-frames)) infinite;
+}
+
+@keyframes ct-pet-state {
+  from {
+    background-position: 0 var(--sprite-y);
+  }
+
+  to {
+    background-position: var(--sprite-end-x) var(--sprite-y);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-pet-sprite {
+    animation: none;
+  }
+}

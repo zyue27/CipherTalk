@@ -184,6 +184,16 @@ export interface ElectronAPI {
     setTldCache: (tlds: string[]) => Promise<void>
     onChanged: (callback: (payload: { key: string; value: unknown }) => void) => () => void
   }
+  pet: {
+    listInstalled: () => Promise<{ success: boolean; pets?: Array<{ slug: string; displayName: string; description: string }>; error?: string }>
+    manifest: (force?: boolean) => Promise<{ success: boolean; pets?: Array<{ slug: string; displayName: string; kind?: string; submittedBy?: string; spritesheetUrl: string; petJsonUrl: string }>; error?: string }>
+    install: (slug: string) => Promise<{ success: boolean; pet?: { slug: string; displayName: string; description: string }; error?: string }>
+    remove: (slug: string) => Promise<{ success: boolean; error?: string }>
+    getSprite: (slug: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>
+    setAgentState: (state: string) => void
+    toggleDesktopWindow: (enabled: boolean) => Promise<{ success: boolean }>
+    onAgentState: (callback: (state: string) => void) => () => void
+  }
   accounts: {
     list: () => Promise<AccountProfile[]>
     getActive: () => Promise<AccountProfile | null>

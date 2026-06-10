@@ -253,6 +253,11 @@ if (gotSingleInstanceLock) {
       markStartupMilestone('startup:tray-create-start')
       ctx.getWindowManager().createTray()
       markStartupMilestone('startup:tray-create-done')
+
+      // 上次开着桌宠就跟着一起唤出
+      if (configService?.get('petDesktopEnabled') && configService.get('petCurrent')) {
+        ctx.getWindowManager().openPetWindow()
+      }
     }
 
     // 启动后台同步放在窗口编排之后，避免启动连接数据库时抢占磁盘 IO。

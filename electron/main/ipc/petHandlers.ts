@@ -1,0 +1,68 @@
+import { ipcMain } from 'electron'
+import type { MainProcessContext } from '../context'
+import {
+  fetchPetManifest,
+  getPetSpriteDataUrl,
+  installPet,
+  listInstalledPets,
+  removePet,
+} from '../../services/petService'
+
+export function registerPetHandlers(ctx: MainProcessContext): void {
+  ipcMain.handle('pet:listInstalled', async () => {
+    try {
+      return { success: true, pets: listInstalledPets() }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('pet:manifest', async (_, force?: boolean) => {
+    try {
+      return { success: true, pets: await fetchPetManifest(Boolean(force)) }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('pet:install', async (_, slug: string) => {
+    try {
+      return { success: true, pet: await installPet(slug) }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('pet:remove', async (_, slug: string) => {
+    try {
+      removePet(slug)
+      const config = ctx.getConfigService()
+      if (config?.get('petCurrent') === slug) {
+        config.set('petCurrent', '')
+        ctx.broadcastToWindows('config:changed', { key: 'petCurrent', value: '' })
+      }
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('pet:getSprite', async (_, slug: string) => {
+    const dataUrl = getPetSpriteDataUrl(slug)
+    return dataUrl ? { success: true, dataUrl } : { success: false, error: '宠物精灵图不存在' }
+  })
+
+  // Agent 运行状态：渲染进程上报，转发给所有窗口（桌宠窗口据此切动画）
+  ipcMain.on('pet:agentState', (_, state: string) => {
+    ctx.broadcastToWindows('pet:agentState', state)
+  })
+
+  ipcMain.handle('pet:toggleDesktopWindow', async (_, enabled: boolean) => {
+    const manager = ctx.getWindowManager()
+    if (enabled) manager.openPetWindow()
+    else manager.closePetWindow()
+    ctx.getConfigService()?.set('petDesktopEnabled', enabled)
+    ctx.broadcastToWindows('config:changed', { key: 'petDesktopEnabled', value: enabled })
+    return { success: true }
+  })
+}

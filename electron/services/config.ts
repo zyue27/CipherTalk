@@ -148,6 +148,9 @@ interface ConfigSchema {
   }
   // 主进程探测到的系统代理 URL（写入后供 AI 子进程/嵌入跨进程读取；子进程无 session API 探测不了）
   aiResolvedProxyUrl: string
+  // AI 宠物（petdex 宠物包格式，宠物包存放在 userData/pets/<slug>/）
+  petCurrent: string         // 当前宠物 slug，空 = 不展示
+  petDesktopEnabled: boolean  // 桌面悬浮桌宠开关
   mcpEnabled: boolean
   mcpExposeMediaPaths: boolean
   mcpProxyPort: number
@@ -235,6 +238,8 @@ const defaults: ConfigSchema = {
     maxResults: 5,
   },
   aiResolvedProxyUrl: '',
+  petCurrent: '',
+  petDesktopEnabled: false,
   mcpEnabled: false,
   mcpExposeMediaPaths: true,
   mcpProxyPort: 5032,
