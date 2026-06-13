@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Home, MessageSquare, Database, Settings,
-  Download, Aperture, Network, FileAudio, Boxes,
+  Download, Aperture, Network, FileAudio, Boxes, Smartphone,
   type LucideIcon
 } from 'lucide-react'
 import MacOSDock, { type DockApp } from '@/components/ui/mac-os-dock'
@@ -108,6 +108,7 @@ function BottomDock() {
     { id: 'chat', name: '聊天查看', icon: makeIcon(MessageSquare, 'linear-gradient(135deg, #2ECC71 0%, #27AE60 100%)') },
     { id: 'moments', name: '朋友圈', icon: makeIcon(Aperture, 'linear-gradient(135deg, #FF7AA2 0%, #E84B7E 100%)') },
     { id: 'transcription', name: '转文字助手', icon: makeIcon(FileAudio, 'linear-gradient(135deg, #5B6CFF 0%, #3F50E0 100%)') },
+    { id: 'device-connect', name: '设备连接', icon: makeIcon(Smartphone, 'linear-gradient(135deg, #1AAD5A 0%, #07C160 100%)') },
     { id: 'export', name: '导出数据', icon: makeIcon(Download, 'linear-gradient(135deg, #1ABC9C 0%, #16A085 100%)') },
     { id: 'data-management', name: '数据管理', icon: makeIcon(Database, 'linear-gradient(135deg, #607D8B 0%, #455A64 100%)') },
     { id: 'open-api', name: '开放接口', icon: makeIcon(Network, 'linear-gradient(135deg, #00BCD4 0%, #0097A7 100%)') },
@@ -121,6 +122,7 @@ function BottomDock() {
       case 'chat': void openChatWindow(); break
       case 'moments': void openMomentsWindow(); break
       case 'transcription': navigate('/transcription-assistant'); break
+      case 'device-connect': navigate('/device-connect'); break
       case 'export': navigate('/export'); break
       case 'data-management': navigate('/data-management'); break
       case 'open-api': navigate('/open-api'); break
