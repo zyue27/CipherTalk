@@ -22,6 +22,17 @@ import type { AgentProgressReporter, AgentProviderConfig, AgentRunInput } from '
 const MAX_STEPS = 24
 const DEFAULT_AGENT_TEMPERATURE = 0.2
 
+type SegmenterLike = {
+  segment(input: string): Iterable<unknown>
+}
+
+function createSmoothStreamChunker(): 'word' | SegmenterLike {
+  const segmenterCtor = (Intl as unknown as {
+    Segmenter?: new (locales?: string | string[], options?: { granularity?: 'grapheme' | 'word' | 'sentence' }) => SegmenterLike
+  }).Segmenter
+  return segmenterCtor ? new segmenterCtor('zh', { granularity: 'word' }) : 'word'
+}
+
 export function buildAgentInstructions(
   input: AgentRunInput,
   memoryContext: string,
@@ -30,7 +41,9 @@ export function buildAgentInstructions(
   webSearchOn = false,
   imageGenOn = false,
 ): { instructions: SystemModelMessage[]; tools: ReturnType<typeof buildTools>; promptCacheKey: string } {
-  const promptParts = buildAgentPromptParts(input.scope, input.skills)
+  const promptParts = buildAgentPromptParts(input.scope, input.skills, {
+    includeWechatOutbound: input.outputMode === 'wechat',
+  })
   const dynamicSystem = [
     promptParts.dynamicSystem,
     input.planMode ? PLAN_MODE_PROMPT : '',
@@ -205,11 +218,14 @@ export async function runAgent(
     }
     perf('记忆上下文', cachedMemoryContext === null ? '未命中缓存，后台补建' : '缓存命中')
     const relevantMemoryContext = ''
-    const webSearchOn = isWebSearchAvailable()
-    const imageGenOn = isImageGenAvailable()
-    const baseTools = withToolTimeouts(input.planMode
-      ? buildPlanModeTools(input.scope)
-      : buildTools(input.scope, input.providerConfig, input.mcpTools, webSearchOn, imageGenOn))
+    const toolsDisabled = input.toolMode === 'disabled'
+    const webSearchOn = !toolsDisabled && isWebSearchAvailable()
+    const imageGenOn = !toolsDisabled && isImageGenAvailable()
+    const baseTools = toolsDisabled
+      ? {}
+      : withToolTimeouts(input.planMode
+        ? buildPlanModeTools(input.scope)
+        : buildTools(input.scope, input.providerConfig, input.mcpTools, webSearchOn, imageGenOn))
     perf('构建工具集', `${Object.keys(baseTools).length} 个`)
     const prepared = buildAgentInstructions(input, memoryContext, relevantMemoryContext, baseTools, webSearchOn, imageGenOn)
     perf('组装系统提示')
@@ -235,7 +251,7 @@ export async function runAgent(
       // 中文没有空格，用 Intl.Segmenter 做 CJK 分词（AI SDK 官方推荐做法）。
       experimental_transform: smoothStream({
         delayInMs: 10,
-        chunking: new Intl.Segmenter('zh', { granularity: 'word' }),
+        chunking: createSmoothStreamChunker(),
       }),
     })
     perf('发起模型流式请求')

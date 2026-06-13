@@ -27,6 +27,36 @@ if (!parentPort) {
 const aborters = new Map<string, AbortController>()
 const keepAliveTimer = setInterval(() => undefined, 60_000)
 
+function truncateText(value: unknown, maxLength = 1200): string {
+  const text = typeof value === 'string' ? value : String(value ?? '')
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...<truncated>` : text
+}
+
+function formatAgentError(error: unknown): string {
+  const e = error as {
+    message?: unknown
+    statusCode?: unknown
+    url?: unknown
+    responseBody?: unknown
+    cause?: { message?: unknown }
+  }
+  const message = typeof e?.message === 'string' && e.message ? e.message : String(error)
+  const details: string[] = [message]
+
+  if (typeof e?.statusCode === 'number') details.push(`status=${e.statusCode}`)
+  if (typeof e?.url === 'string' && e.url) details.push(`url=${e.url}`)
+
+  if (typeof e?.responseBody === 'string' && e.responseBody) {
+    details.push(`responseBody=${truncateText(e.responseBody)}`)
+  }
+
+  if (e?.cause?.message && e.cause.message !== message) {
+    details.push(`cause=${truncateText(e.cause.message, 500)}`)
+  }
+
+  return details.join(' | ')
+}
+
 parentPort.on('message', (event: Electron.MessageEvent) => {
   void handleMessage(event.data)
 })
@@ -131,7 +161,7 @@ async function handleMessage(msg: any): Promise<void> {
         parentPort!.postMessage({ id, error: `unknown type: ${type}` })
     }
   } catch (e: any) {
-    parentPort!.postMessage({ id, error: e?.message || String(e) })
+    parentPort!.postMessage({ id, error: formatAgentError(e) })
   }
 }
 

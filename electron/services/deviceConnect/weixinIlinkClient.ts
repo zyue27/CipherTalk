@@ -17,10 +17,12 @@ const BOT_AGENT = 'OpenClaw'
 const CDN_UPLOAD_RETRIES = 3
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024
 const MAX_FILE_BYTES = 100 * 1024 * 1024
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024
 const MAX_VOICE_BYTES = 10 * 1024 * 1024
 
 const UploadMediaType = {
   IMAGE: 1,
+  VIDEO: 2,
   FILE: 3,
   VOICE: 4,
 } as const
@@ -30,6 +32,7 @@ const MessageItemType = {
   IMAGE: 2,
   VOICE: 3,
   FILE: 4,
+  VIDEO: 5,
 } as const
 
 /** iLink-App-ClientVersion：uint32 = major<<16 | minor<<8 | patch（高 8 位固定 0）。 */
@@ -84,6 +87,7 @@ export interface IlinkMessageItem {
   image_item?: IlinkImageItem
   voice_item?: IlinkVoiceItem
   file_item?: IlinkFileItem
+  video_item?: IlinkVideoItem
 }
 
 export interface IlinkMessage {
@@ -146,6 +150,13 @@ interface IlinkFileItem {
   media?: IlinkCdnMedia
   file_name?: string
   len?: string
+}
+
+interface IlinkVideoItem {
+  media?: IlinkCdnMedia
+  video_size?: number
+  play_length?: number
+  video_md5?: string
 }
 
 /** X-WECHAT-UIN：随机 uint32 → 十进制字符串 → base64（每请求一变） */
@@ -424,6 +435,22 @@ export async function sendFile(
       media: toCdnMedia(uploaded),
       file_name: basename(filePath),
       len: String(uploaded.fileSize),
+    },
+  }, contextToken)
+}
+
+export async function sendVideo(
+  session: IlinkSession,
+  toUserId: string,
+  filePath: string,
+  contextToken?: string,
+): Promise<void> {
+  const uploaded = await uploadLocalMedia(session, toUserId, filePath, UploadMediaType.VIDEO, MAX_VIDEO_BYTES)
+  await sendMediaItem(session, toUserId, {
+    type: MessageItemType.VIDEO,
+    video_item: {
+      media: toCdnMedia(uploaded),
+      video_size: uploaded.fileSizeCiphertext,
     },
   }, contextToken)
 }

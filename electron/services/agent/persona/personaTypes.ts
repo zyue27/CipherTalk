@@ -192,6 +192,8 @@ export interface PersonaChatInput {
   providerConfig: AgentProviderConfig
   persona: PersonaChatPersona
   messages: ModelMessage[]
+  /** 输出场景：微信入口使用微信气泡分段标记，软件内聊天保持普通短消息文本。 */
+  outputMode?: 'app' | 'wechat'
 }
 
 /** persona:buildProgress 推送事件。 */

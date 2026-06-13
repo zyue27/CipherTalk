@@ -319,8 +319,19 @@ const TOOL_LABELS: Record<string, string> = {
   search_stickers: '翻表情包',
   send_sticker: '发表情包',
   send_random_image: '抽一张图片',
+  send_wechat_media: '发送微信媒体',
+  persona_control: '数字分身',
   auto_memory: '自动记忆',
   final_review: '最终审核',
+}
+
+type PersonaControlOutput = {
+  success?: boolean
+  action?: 'open_persona_chat' | 'ask_persona_build' | 'build_persona' | 'build_session_vectors'
+  sessionId?: string
+  displayName?: string
+  message?: string
+  error?: string
 }
 
 function formatToolName(toolName: string) {
@@ -331,6 +342,13 @@ function formatToolName(toolName: string) {
     return `MCP: ${server}/${tool}`
   }
   return TOOL_LABELS[toolName] ?? toolName.replace(/[_-]+/g, ' ')
+}
+
+function getPersonaControlOutput(part: unknown): PersonaControlOutput | null {
+  const p = part as { type?: unknown; state?: unknown; output?: unknown }
+  if (p?.type !== 'tool-persona_control' || p.state !== 'output-available') return null
+  if (!p.output || typeof p.output !== 'object') return null
+  return p.output as PersonaControlOutput
 }
 
 /** @ 单个会话且其未建语义索引时，提示建立（可建/可跳过，跳过后本会话不再提示）。 */
@@ -1888,6 +1906,7 @@ export default function AgentPage() {
   )
   // 已"跳过"向量化提示的会话（本次运行内不再提示）
   const dismissedVecRef = useRef(new Set<string>())
+  const processedPersonaActionsRef = useRef(new Set<string>())
   // 单个 @ → 锁定该会话 scope；多个/零个 → 全局（多个走消息注入，见 handleSubmit）
   const scopeRef = useRef<AgentScope>({ kind: 'global' })
   const submitScopeRef = useRef<AgentScope | null>(null)
@@ -1966,6 +1985,51 @@ export default function AgentPage() {
   const { messages, sendMessage, setMessages, status, stop } = useChat({ transport, experimental_throttle: 50 })
   const [modelOpen, setModelOpen] = useState(false)
   const busy = status === 'submitted' || status === 'streaming'
+  useEffect(() => {
+    if (!busy && !agentRunPending) return
+    for (const message of messages) {
+      if (message.role !== 'assistant') continue
+      for (let index = 0; index < message.parts.length; index += 1) {
+        const output = getPersonaControlOutput(message.parts[index])
+        if (!output?.success || !output.action || !output.sessionId) continue
+        const key = `${message.id}:${index}:${output.action}:${output.sessionId}`
+        if (processedPersonaActionsRef.current.has(key)) continue
+        processedPersonaActionsRef.current.add(key)
+
+        const displayName = output.displayName || output.sessionId
+        if (output.action === 'open_persona_chat') {
+          setAgentNotice(`正在打开「${displayName}」的数字分身...`)
+          void window.electronAPI.window.openPersonaChatWindow(output.sessionId)
+            .then(() => setAgentNotice(`已打开「${displayName}」的数字分身。`))
+            .catch((error) => setAgentNotice(error instanceof Error ? error.message : '打开数字分身失败'))
+          continue
+        }
+
+        if (output.action === 'build_session_vectors') {
+          setAgentNotice(`正在为「${displayName}」建立语义索引...`)
+          void window.electronAPI.embedding.buildSession(output.sessionId)
+            .then((result) => {
+              setAgentNotice(result.success
+                ? `「${displayName}」的语义索引已建立。`
+                : `语义索引建立失败：${result.error || '未知错误'}`)
+            })
+            .catch((error) => setAgentNotice(error instanceof Error ? error.message : '语义索引建立失败'))
+          continue
+        }
+
+        if (output.action === 'build_persona') {
+          setAgentNotice(`正在克隆「${displayName}」的数字分身...`)
+          void window.electronAPI.persona.build({ sessionId: output.sessionId, displayName })
+            .then((result) => {
+              setAgentNotice(result.success
+                ? `「${displayName}」的数字分身已创建成功。请重新说「打开${displayName}数字分身」进入对话。`
+                : `数字分身克隆失败：${result.error || '未知错误'}`)
+            })
+            .catch((error) => setAgentNotice(error instanceof Error ? error.message : '数字分身克隆失败'))
+        }
+      }
+    }
+  }, [agentRunPending, busy, messages])
   // 模型空窗期：流已建立（status=streaming）但助手消息还没有任何可见输出（最多只有 step-start），
   // 即"模型首 token 还没到"——这段最长可达十几秒，用轮播文案兜住
   const lastMessageForWait = messages[messages.length - 1]

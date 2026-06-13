@@ -93,6 +93,10 @@ export interface AgentRunInput {
   scope: AgentScope
   mcpTools?: AgentMcpToolDescriptor[]
   skills?: AgentSkillContextItem[]
+  /** 禁用工具装配：用于微信机器人这类只需要纯文本回复的外部入口。 */
+  toolMode?: 'default' | 'disabled'
+  /** 输出场景：微信入口会追加微信发送约定，软件内聊天保持默认。 */
+  outputMode?: 'default' | 'wechat'
   /** 计划模式：开启后本轮只制定执行计划、不给最终结论（见 prompts.ts PLAN_MODE_PROMPT）。 */
   planMode?: boolean
 }

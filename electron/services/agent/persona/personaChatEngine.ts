@@ -15,7 +15,7 @@ const MEMORY_TOP_K = 5
 const PAIR_TOP_K = 6
 // 扮演真人要比工具 Agent 更"活"，温度调高
 const PERSONA_TEMPERATURE = 0.8
-const BURST_JOINER = '／'
+const BURST_JOINER = '---wx-next---'
 const HUMAN_TYPING_MS_PER_CHAR = 260
 const HUMAN_TYPING_MIN_DELAY_MS = 1000
 const HUMAN_TYPING_MAX_DELAY_MS = 7500
@@ -23,7 +23,7 @@ const HUMAN_BUBBLE_PAUSE_MIN_MS = 700
 const HUMAN_BUBBLE_PAUSE_MAX_MS = 2200
 
 function splitReplyBubbles(text: string): string[] {
-  return text.split(/[\n／]/).map((line) => line.trim()).filter(Boolean)
+  return text.split(new RegExp(`^\\s*${BURST_JOINER}\\s*$`, 'm')).map((line) => line.trim()).filter(Boolean)
 }
 
 // 兜底拆条：不分条的回复超过 max(此值, 平均字数×2.5) 才动它
@@ -67,7 +67,7 @@ function resolveStickerMarkers(text: string, stickers: PersonaSticker[]): string
     if (rest) out.push(rest)
   }
   // 全是无法解析的标记被丢光时退回原文，至少别发空消息
-  return out.length > 0 ? out.join('\n') : text
+  return out.length > 0 ? out.join(`\n${BURST_JOINER}\n`) : text
 }
 
 const STICKER_BUBBLE_RE = /\[表情包\](\{[^}]*\})/g
@@ -133,7 +133,7 @@ function fallbackSplitLongReply(text: string, avgChars: number): string {
     }
   }
   if (current) bubbles.push(current)
-  return bubbles.join('\n')
+  return bubbles.join(`\n${BURST_JOINER}\n`)
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -224,7 +224,8 @@ function lastUserText(messages: ModelMessage[]): string {
 }
 
 /** 记忆预检索：嵌入就绪走会话片段向量（首聊触发懒构建，进度上报），否则/失败关键词兜底。 */
-async function retrieveMemories(sessionId: string, query: string): Promise<string[]> {
+async function retrieveMemories(sessionId: string, query: string, outputMode: PersonaChatInput['outputMode'] = 'app'): Promise<string[]> {
+  const lineJoiner = outputMode === 'wechat' ? BURST_JOINER : ' / '
   try {
     const { getEmbeddingConfig } = await import('../../ai/embeddingService')
     const { messageVectorService, embedQuery } = await import('../../search/messageVectorService')
@@ -240,7 +241,7 @@ async function retrieveMemories(sessionId: string, query: string): Promise<strin
       })
       const hits = messageVectorService.searchSession(sessionId, queryVec, MEMORY_TOP_K)
       if (hits.length > 0) {
-        return hits.map((h) => h.excerpt.replace(/\n+/g, BURST_JOINER))
+        return hits.map((h) => h.excerpt.replace(/\n+/g, lineJoiner))
       }
     }
   } catch {
@@ -248,7 +249,7 @@ async function retrieveMemories(sessionId: string, query: string): Promise<strin
   }
   try {
     const { hits } = await searchChat({ query, sessionId, limit: MEMORY_TOP_K })
-    return hits.map((h) => `${h.sender}: ${h.excerpt.replace(/\n+/g, BURST_JOINER)}`)
+    return hits.map((h) => `${h.sender}: ${h.excerpt.replace(/\n+/g, lineJoiner)}`)
   } catch {
     return []
   }
@@ -271,11 +272,14 @@ export function buildPersonaSystemPrompt(
   similarPairs: PersonaFewShot[] = [],
   voiceEnabled = false,
   voiceForwardRequested = false,
+  outputMode: PersonaChatInput['outputMode'] = 'app',
 ): string {
   const { displayName, card, fewShots, stats, profile, notes } = persona
   const stickers = persona.stickers || []
+  const isWechatOutput = outputMode === 'wechat'
+  const replyJoiner = isWechatOutput ? `\n${BURST_JOINER}\n` : '\n'
   const lines: string[] = [
-    `你是「${displayName}」，正在微信上和老朋友聊天。你不是 AI 助手，你就是${displayName}本人，任何情况下都不要承认或暗示自己是 AI、模型或程序。`,
+    `你是「${displayName}」，正在${isWechatOutput ? '微信上' : '聊天窗口里'}和老朋友聊天。你不是 AI 助手，你就是${displayName}本人，任何情况下都不要承认或暗示自己是 AI、模型或程序。`,
     '',
     '【你的说话方式】',
     `语气风格：${card.tone}`,
@@ -308,8 +312,10 @@ export function buildPersonaSystemPrompt(
   if (fewShots.length > 0) {
     lines.push(
       '',
-      `【你过去真实的回复方式】（「${BURST_JOINER}」分隔的是连发的多条消息）`,
-      ...fewShots.map((s) => `对方: ${s.user}\n你: ${s.replies.join(BURST_JOINER)}`),
+      isWechatOutput
+        ? `【你过去真实的回复方式】（独占一行的「${BURST_JOINER}」分隔的是连发的多条消息）`
+        : '【你过去真实的回复方式】（每行是一条当时连发的短回复）',
+      ...fewShots.map((s) => `对方: ${s.user}\n你: ${s.replies.join(replyJoiner)}`),
     )
   }
 
@@ -320,7 +326,7 @@ export function buildPersonaSystemPrompt(
     lines.push(
       '',
       '【你过去遇到类似话题时的真实回复】（最值得参考的范例：当时就是这么回的，语气、长度、分条都照这个感觉来）',
-      ...freshPairs.map((s) => `对方: ${s.user}\n你: ${s.replies.join(BURST_JOINER)}`),
+      ...freshPairs.map((s) => `对方: ${s.user}\n你: ${s.replies.join(replyJoiner)}`),
     )
   }
 
@@ -351,7 +357,9 @@ export function buildPersonaSystemPrompt(
   lines.push(
     '',
     '【聊天规则】',
-    `- 微信短消息风格：文字气泡单条 ${Math.max(stats.avgFriendMsgChars, 4)} 字左右；超过两句话通常拆成多条连发，每条之间用换行或「${BURST_JOINER}」分隔（会被拆成多条气泡发出），绝不要把文字一条发一大段`,
+    isWechatOutput
+      ? `- 微信短消息风格：文字气泡单条 ${Math.max(stats.avgFriendMsgChars, 4)} 字左右；超过两句话通常拆成多条连发。要拆成多条时，在两条消息之间单独输出一行「${BURST_JOINER}」。`
+      : `- 聊天软件短消息风格：单条 ${Math.max(stats.avgFriendMsgChars, 4)} 字左右；超过两句话通常拆成几条短回复。`,
     '- 回复几条由你根据上下文定：简单的话就一条，有内容的拆成 2-4 条，像真人打字那样一句一句发',
     ...(voiceEnabled ? [
       '- 你可以发语音消息：哪条更像你会用语音说（情绪上头、内容长懒得打字、随口唠叨、想让对方听到语气时），就在那条开头加「[语音]」标记，它会以语音条发出、对方点开能听到你的声音。语音合成会使用上面的声音表现指令；语音不受文字气泡长度限制，你自己按场景和这个人的习惯判断长短：有人会发几秒短语音，也会发几十秒长语音；长语音可以更口语化、带停顿和“呃”“然后”这种，但别为了凑长度废话',
@@ -380,10 +388,11 @@ export async function runPersonaChat(
 ): Promise<void> {
   await withAgentProgress(onProgress, async () => {
     const userText = lastUserText(input.messages)
+    const outputMode = input.outputMode || 'app'
     reportAgentProgress({ stage: 'run_started', title: '正在回忆相关聊天' })
     const [memories, similarPairs] = userText
       ? await Promise.all([
-          retrieveMemories(input.persona.sessionId, userText),
+          retrieveMemories(input.persona.sessionId, userText, outputMode),
           retrieveSimilarPairs(input.persona.sessionId, userText),
         ])
       : [[], []]
@@ -399,7 +408,7 @@ export async function runPersonaChat(
     reportAgentProgress({ stage: 'run_started', title: '正在组织语言' })
     const result = await generateText({
       model: createLanguageModel(input.providerConfig),
-      system: buildPersonaSystemPrompt(input.persona, memories, similarPairs, voiceEnabled, voiceForwardRequested),
+      system: buildPersonaSystemPrompt(input.persona, memories, similarPairs, voiceEnabled, voiceForwardRequested, outputMode),
       messages: maskStickerHistory(input.messages, input.persona.stickers || []),
       temperature: PERSONA_TEMPERATURE,
       abortSignal: signal,

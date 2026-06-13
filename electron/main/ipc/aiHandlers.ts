@@ -4,7 +4,7 @@ import { join } from 'path'
 import type { UIMessage } from 'ai'
 import type { MainProcessContext } from '../context'
 import type { AgentProviderConfig, AgentProviderConfigOverride, AgentScope } from '../../services/agent/types'
-import type { PersonaNotes, PersonaProfile, PersonaStats } from '../../services/agent/persona/personaTypes'
+import type { PersonaNotes } from '../../services/agent/persona/personaTypes'
 
 /** 进行中的 agent 运行：runId → AbortController，用于取消。 */
 const agentAborters = new Map<string, AbortController>()
@@ -1171,164 +1171,15 @@ export function registerAiHandlers(ctx: MainProcessContext): void {
     const sessionId = String(payload?.sessionId || '').trim()
     const displayName = String(payload?.displayName || '').trim() || sessionId
     const logger = ctx.getLogService()
-    const startedAt = Date.now()
-    const sendProgress = (stage: string, title: string, percent: number, detail?: string) => {
-      if (!sender.isDestroyed()) sender.send('persona:buildProgress', { sessionId, stage, title, percent, detail })
-    }
-    try {
-      if (!sessionId) return { success: false, error: '缺少 sessionId' }
-      // 先解析模型配置：没配 Key/模型时这里直接报错，不浪费后面的耗时步骤
-      const { resolveProviderConfig } = await import('../../services/agent/resolveProviderConfig')
-      const { refreshResolvedProxyUrl } = await import('../../services/ai/proxyFetch')
-      const providerConfig = resolveProviderConfig()
-      await refreshResolvedProxyUrl()
-
-      sendProgress('indexing', '正在读取聊天记录', 5)
-      const { chatSearchIndexService } = await import('../../services/search/chatSearchIndexService')
-      // 深层画像吃全量历史（封顶 6000 条），风格卡仍用最近语料
-      const messages = await chatSearchIndexService.listSessionMemoryMessages(sessionId, (p) => {
-        sendProgress('indexing', '正在读取聊天记录', 10, p.message)
-      }, 6000)
-
-      sendProgress('corpus', '正在分析说话风格', 40)
-      const { buildPersonaCorpus, MIN_FRIEND_MESSAGES, PROFILE_MAX_CHUNKS, mergeTurns, renderProfileChunks, extractPersonaPairs } =
-        await import('../../services/agent/persona/personaCorpus')
-      const corpus = buildPersonaCorpus(messages, displayName)
-
-      // 私聊语料不足时，从 TA 所在群聊收集发言补充（只喂风格卡/深层画像，不进问答对——群聊问答错位）
-      let groupCorpus: import('../../services/agent/persona/personaGroupCorpus').PersonaGroupCorpus | null = null
-      if (corpus.stats.friendMessageCount < MIN_FRIEND_MESSAGES) {
-        sendProgress('corpus', '私聊语料不足，正在收集群聊发言', 42)
-        try {
-          const { collectGroupCorpus } = await import('../../services/agent/persona/personaGroupCorpus')
-          groupCorpus = await collectGroupCorpus(sessionId, displayName, (detail) => {
-            sendProgress('corpus', '私聊语料不足，正在收集群聊发言', 44, detail)
-          })
-        } catch (e) {
-          logger?.warn('Persona', '群聊语料收集失败，仅用私聊语料', { sessionId, ...errorToLogData(e) })
-        }
-        const totalFriendMessages = corpus.stats.friendMessageCount + (groupCorpus?.friendMessageCount || 0)
-        if (totalFriendMessages < MIN_FRIEND_MESSAGES) {
-          const groupNote = groupCorpus?.friendMessageCount
-            ? `私聊 ${corpus.stats.friendMessageCount} 条 + 群聊 ${groupCorpus.friendMessageCount} 条`
-            : `${corpus.stats.friendMessageCount} 条`
-          const error = `与「${displayName}」的可用文本消息太少（${groupNote}，至少需要 ${MIN_FRIEND_MESSAGES} 条），不足以克隆`
-          sendProgress('error', '克隆失败', 100, error)
-          return { success: false, error }
-        }
-      }
-      const stats: PersonaStats = {
-        ...corpus.stats,
-        ...(groupCorpus?.friendMessageCount
-          ? { groupMessageCount: groupCorpus.friendMessageCount, groupSessionCount: groupCorpus.groupCount }
-          : {}),
-      }
-      const turns = mergeTurns(messages)
-
-      sendProgress('extracting', '正在提炼说话风格（调用 AI）', 48)
-      const { agentProcessService } = await import('../../services/agent/agentProcessService')
-      agentProcessService.setLogger(logger)
-      const extracted = await agentProcessService.extractPersona({
-        providerConfig,
-        friendName: displayName,
-        corpusText: corpus.corpusText,
-        groupCorpusText: groupCorpus?.friendMessageCount ? groupCorpus.corpusText : undefined,
-        stats,
-      })
-
-      // 深层画像 map-reduce：逐块提取（并发 3，单块失败跳过），全失败则降级为无深层画像
-      // 群聊块排私聊块之后，总量仍封顶（私聊不足时私聊块本来就少，群聊块补得进来）
-      const profileChunks = [...renderProfileChunks(turns, displayName), ...(groupCorpus?.profileChunks || [])]
-        .slice(0, PROFILE_MAX_CHUNKS)
-      const parts: Array<PersonaProfile | undefined> = new Array(profileChunks.length)
-      let nextChunk = 0
-      let doneChunks = 0
-      await Promise.all(
-        Array.from({ length: Math.min(3, profileChunks.length) }, async () => {
-          while (nextChunk < profileChunks.length) {
-            const myIndex = nextChunk++
-            try {
-              parts[myIndex] = await agentProcessService.extractProfileChunk({
-                providerConfig,
-                friendName: displayName,
-                chunkText: profileChunks[myIndex],
-              })
-            } catch { /* 单块失败跳过 */ }
-            doneChunks += 1
-            sendProgress(
-              'extracting',
-              `正在提炼深层画像（${doneChunks}/${profileChunks.length}）`,
-              55 + Math.round((doneChunks / profileChunks.length) * 25),
-            )
-          }
-        }),
-      )
-      const validParts = parts.filter((p): p is PersonaProfile => !!p)
-      let profile: PersonaProfile | null = null
-      if (validParts.length > 0) {
-        sendProgress('extracting', '正在合并深层画像', 82)
-        try {
-          profile = await agentProcessService.mergeProfile({ providerConfig, friendName: displayName, parts: validParts })
-        } catch (e) {
-          logger?.warn('Persona', '深层画像合并失败，降级为无深层画像', { sessionId, ...errorToLogData(e) })
-        }
-      }
-
-      // 表情包词典：TA 私聊+群聊发过的表情包按使用频率统计，聊天时模型可按编号点播
-      const { collectStickers, mergeStickers } = await import('../../services/agent/persona/personaStickers')
-      const stickers = mergeStickers(
-        collectStickers(messages, (m) => m.isSend !== 1),
-        groupCorpus?.stickers || [],
-      )
-
-      sendProgress('saving', '正在保存画像', 88)
-      const { personaStore } = await import('../../services/agent/persona/personaStore')
-      const corpusUntil = messages.reduce((max, m) => Math.max(max, m.createTime), 0)
-      const persona = personaStore.upsert({
-        sessionId,
-        displayName,
-        card: extracted.card,
-        fewShots: extracted.fewShots,
-        stats,
-        profile,
-        stickers,
-        corpusUntil,
-        modelProvider: providerConfig.name,
-        modelId: providerConfig.model,
-      })
-
-      // 问答对索引（检索式 few-shot）：全量重建 + 补嵌入（未配嵌入则只存文本，聊天时关键词兜底）
-      try {
-        const { personaPairStore } = await import('../../services/agent/persona/personaPairStore')
-        personaPairStore.replaceAll(sessionId, extractPersonaPairs(turns))
-        sendProgress('saving', '正在为真实问答建索引', 92)
-        await personaPairStore.embedPending(sessionId, (current, total) => {
-          sendProgress('saving', `正在为真实问答建索引（${current}/${total}）`, 92 + Math.round((current / total) * 6))
-        })
-      } catch (e) {
-        logger?.warn('Persona', '问答对索引构建失败（聊天时退回静态样本）', { sessionId, ...errorToLogData(e) })
-      }
-
-      sendProgress('done', '克隆完成', 100)
-      logger?.warn('Persona', '画像构建完成', {
-        sessionId,
-        elapsedMs: Date.now() - startedAt,
-        friendMessageCount: corpus.stats.friendMessageCount,
-        groupMessageCount: groupCorpus?.friendMessageCount || 0,
-        stickerCount: stickers.length,
-        fewShotCount: persona.fewShots.length,
-        profileChunkCount: profileChunks.length,
-        hasProfile: !!profile,
-        provider: providerConfig.name,
-        model: providerConfig.model,
-      })
-      return { success: true, persona }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
-      logger?.error('Persona', '画像构建失败', { sessionId, elapsedMs: Date.now() - startedAt, ...errorToLogData(e) })
-      sendProgress('error', '克隆失败', 100, message)
-      return { success: false, error: message }
-    }
+    const { buildPersonaFromSession } = await import('../../services/agent/persona/personaBuildService')
+    return buildPersonaFromSession({
+      sessionId,
+      displayName,
+      logger,
+      onProgress: (progress) => {
+        if (!sender.isDestroyed()) sender.send('persona:buildProgress', progress)
+      },
+    })
   })
 
   ipcMain.handle('agent:generateTitle', async (_event, payload: {
